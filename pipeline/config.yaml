@@ -1,0 +1,183 @@
+# Cóndor View — Configuración del motor de scoring
+# San Rafael, Mendoza — Departamento completo
+
+piloto:
+  nombre: "San Rafael, Mendoza"
+  # Bbox del departamento completo
+  bbox:
+    west: -70.17
+    south: -36.00
+    east: -66.92
+    north: -34.25
+  crs_trabajo: "EPSG:5343"  # POSGAR 2007 faja 3 (Mendoza)
+  crs_salida: "EPSG:4326"
+
+grilla:
+  tamano_m: 2000  # 2km para departamento completo (~27,000 zonas)
+
+pesos:
+  w_norm: 0.40
+  w_fis: 0.30
+  w_acc: 0.30
+
+umbrales:
+  pendiente:
+    ideal_pct: 5.0
+    max_pct: 25.0
+  accesibilidad:
+    d0_huella_m: 8000
+    d0_vial_m: 5000
+    d0_agua_m: 6000
+
+categorias:
+  alta: 70
+  media: 40
+  baja: 0
+
+rutas:
+  salida_geojson: "../frontend/public/data/zonas.geojson"
+
+# Geografía real de San Rafael
+geografia:
+  # Oasis irrigado (~5.7% del departamento, donde vive el 90% de la población)
+  oasis:
+    north: -34.50
+    south: -34.95
+    west: -68.50
+    east: -67.70
+
+  localidades:
+    - nombre: "San Rafael"
+      coords: [-68.333, -34.600]
+      poblacion: 118000
+      radio_urbano_m: 6000
+    - nombre: "Villa Atuel"
+      coords: [-67.920, -34.831]
+      poblacion: 8000
+      radio_urbano_m: 2000
+    - nombre: "Monte Comán"
+      coords: [-67.878, -34.592]
+      poblacion: 5000
+      radio_urbano_m: 1500
+    - nombre: "Real del Padre"
+      coords: [-67.766, -34.840]
+      poblacion: 6350
+      radio_urbano_m: 1500
+    - nombre: "Cuadro Benegas"
+      coords: [-68.431, -34.623]
+      poblacion: 3000
+      radio_urbano_m: 1200
+    - nombre: "Rama Caída"
+      coords: [-68.382, -34.678]
+      poblacion: 2500
+      radio_urbano_m: 1000
+    - nombre: "Las Malvinas"
+      coords: [-68.250, -34.830]
+      poblacion: 2000
+      radio_urbano_m: 1000
+    - nombre: "Goudge"
+      coords: [-68.050, -34.610]
+      poblacion: 1500
+      radio_urbano_m: 800
+    - nombre: "Salto de las Rosas"
+      coords: [-68.300, -34.660]
+      poblacion: 1000
+      radio_urbano_m: 800
+    - nombre: "El Sosneado"
+      coords: [-69.568, -35.079]
+      poblacion: 500
+      radio_urbano_m: 500
+    - nombre: "El Nihuil"
+      coords: [-68.667, -35.033]
+      poblacion: 600
+      radio_urbano_m: 500
+
+  rios:
+    diamante:
+      puntos:
+        - [-69.036, -34.584]   # Agua del Toro
+        - [-68.642, -34.602]   # Los Reyunos
+        - [-68.333, -34.580]   # Paso por San Rafael
+        - [-67.878, -34.560]   # Hacia el este
+        - [-67.400, -34.540]
+        - [-66.920, -34.520]
+      ancho_riesgo_m: 3000
+
+    atuel:
+      puntos:
+        - [-68.750, -35.083]   # El Nihuil
+        - [-68.520, -34.845]   # Valle Grande
+        - [-68.350, -34.700]   # Entra al oasis
+        - [-68.100, -34.650]
+        - [-67.800, -34.600]
+        - [-67.400, -34.560]
+        - [-66.920, -34.530]
+      ancho_riesgo_m: 2500
+
+  rutas_viales:
+    ruta_40:
+      - [-69.080, -33.950]    # Pareditas (norte)
+      - [-69.568, -35.079]    # El Sosneado
+      - [-69.600, -35.400]    # Hacia el sur
+
+    ruta_143:
+      - [-67.400, -34.750]    # Desde General Alvear
+      - [-67.766, -34.840]    # Real del Padre
+      - [-67.920, -34.831]    # Villa Atuel
+      - [-68.300, -34.660]    # Salto de las Rosas
+      - [-68.382, -34.678]    # Rama Caída
+      - [-68.333, -34.600]    # San Rafael
+      - [-69.080, -33.950]    # Hacia Pareditas
+
+    ruta_144:
+      - [-68.379, -34.652]    # San Rafael
+      - [-68.520, -34.720]
+      - [-68.750, -34.800]
+      - [-69.000, -34.900]
+      - [-69.568, -35.079]    # El Sosneado
+
+    ruta_146:
+      - [-66.920, -34.500]    # Desde San Luis
+      - [-67.878, -34.592]    # Monte Comán
+      - [-68.050, -34.610]    # Goudge
+      - [-68.339, -34.614]    # San Rafael
+
+  # Elevación del terreno (gradiente oeste-este)
+  elevacion:
+    # Puntos de referencia para interpolación
+    perfiles:
+      - lng: -70.17
+        alt_m: 4000
+      - lng: -69.50
+        alt_m: 2500
+      - lng: -69.00
+        alt_m: 1500
+      - lng: -68.70
+        alt_m: 1000
+      - lng: -68.50
+        alt_m: 800
+      - lng: -68.33
+        alt_m: 750
+      - lng: -68.00
+        alt_m: 650
+      - lng: -67.50
+        alt_m: 500
+      - lng: -67.00
+        alt_m: 400
+      - lng: -66.92
+        alt_m: 380
+
+  # Embalses / cuerpos de agua
+  embalses:
+    - nombre: "El Nihuil"
+      coords: [-68.750, -35.083]
+      radio_m: 5000
+    - nombre: "Valle Grande"
+      coords: [-68.520, -34.845]
+      radio_m: 2000
+    - nombre: "Los Reyunos"
+      coords: [-68.642, -34.602]
+      radio_m: 3000
+    - nombre: "Agua del Toro"
+      coords: [-69.036, -34.584]
+      radio_m: 2000

@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Build
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Data (large files, regenerable)
+pipeline/data/*.tif
+pipeline/data/*.shp
+pipeline/data/*.dbf
+pipeline/data/*.shx
+pipeline/data/*.prj
+
+# Cache
+.cache/
+*.tsbuildinfo
