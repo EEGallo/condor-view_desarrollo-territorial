@@ -37,3 +37,9 @@ pipeline/data/*.prj
 # Cache
 .cache/
 *.tsbuildinfo
+
+# Pipeline data & cache (binarios grandes — regenerar con scripts)
+pipeline/data/raw/
+pipeline/data/*.gpkg
+pipeline/data/*.parquet
+pipeline/cache/
