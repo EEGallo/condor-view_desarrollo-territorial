@@ -12,6 +12,7 @@ import { LayerToggle } from "@/components/LayerToggle";
 import { InterventionControls } from "@/components/InterventionControls";
 import { InterventionSummary } from "@/components/InterventionSummary";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
+import { TerrainToggle } from "@/components/TerrainToggle";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { IntroHint } from "@/components/IntroHint";
 import type { ZoneProperties, Categoria } from "@/components/types";
@@ -100,6 +101,10 @@ export default function Home() {
     mapRef.current?.setColorMode(mode);
   }, []);
 
+  const handleTerrainToggle = useCallback((enabled: boolean) => {
+    mapRef.current?.set3D(enabled);
+  }, []);
+
   return (
     <main className="relative" style={{ width: "100vw", height: "100vh" }}>
       {/* Title */}
@@ -129,6 +134,7 @@ export default function Home() {
 
       {/* Controls */}
       <LayerToggle onStyleChange={handleStyleChange} />
+      <TerrainToggle onToggle={handleTerrainToggle} />
       <FilterControls onFiltersChange={handleFiltersChange} />
       <WeightControls onWeightsChange={handleWeightsChange} />
       <InterventionControls

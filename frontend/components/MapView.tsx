@@ -51,6 +51,7 @@ export type MapViewHandle = {
   setSimMode: (type: InterventionType | null) => void;
   clearInterventions: () => void;
   setColorMode: (mode: ColorMode) => void;
+  set3D: (enabled: boolean) => void;
 };
 
 const BASEMAP_STYLES: Record<BasemapStyle, string> = {
@@ -67,6 +68,11 @@ const HIGHLIGHT_LAYER_ID = "zonas-highlight";
 const DRAW_SOURCE_ID = "sim-draw";
 const DRAW_LINE_LAYER_ID = "sim-draw-line";
 const DRAW_POINT_LAYER_ID = "sim-draw-point";
+const TERRAIN_SOURCE_ID = "terrain-dem";
+const HILLSHADE_LAYER_ID = "terrain-hillshade";
+// Tiles terrain-RGB públicos (AWS Open Data, sin API key)
+const TERRARIUM_TILES =
+  "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 
 // San Rafael center
 const DEFAULT_CENTER: [number, number] = [-68.333, -34.6];
@@ -234,8 +240,35 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     const simModeRef = useRef<InterventionType | null>(null);
     const centroidsRef = useRef<Record<string, [number, number]>>({});
     const colorModeRef = useRef<ColorMode>("aptitud");
+    const terrain3DRef = useRef(false);
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
+
+    // Activa/desactiva terreno 3D (terrarium) + hillshade + pitch.
+    const applyTerrain = useCallback((enabled: boolean) => {
+      const map = mapRef.current;
+      if (!map) return;
+      terrain3DRef.current = enabled;
+      if (enabled) {
+        map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: 1.4 });
+        if (!map.getLayer(HILLSHADE_LAYER_ID)) {
+          map.addLayer(
+            {
+              id: HILLSHADE_LAYER_ID,
+              type: "hillshade",
+              source: TERRAIN_SOURCE_ID,
+              paint: { "hillshade-exaggeration": 0.45 },
+            },
+            FILL_LAYER_ID // debajo de las zonas
+          );
+        }
+        map.easeTo({ pitch: 62, duration: 800 });
+      } else {
+        map.setTerrain(null);
+        if (map.getLayer(HILLSHADE_LAYER_ID)) map.removeLayer(HILLSHADE_LAYER_ID);
+        map.easeTo({ pitch: 0, duration: 800 });
+      }
+    }, []);
 
     const handleZoneSelect = useCallback(
       (zone: ZoneProperties) => onZoneSelect(zone),
@@ -392,6 +425,18 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     const addDataLayers = useCallback(
       (map: maplibregl.Map, geojson: GeoJSON.FeatureCollection) => {
         if (map.getSource(SOURCE_ID)) return;
+
+        // Fuente de terreno (raster-dem terrarium) — siempre presente, se
+        // usa solo cuando el 3D está activo.
+        if (!map.getSource(TERRAIN_SOURCE_ID)) {
+          map.addSource(TERRAIN_SOURCE_ID, {
+            type: "raster-dem",
+            tiles: [TERRARIUM_TILES],
+            encoding: "terrarium",
+            tileSize: 256,
+            maxzoom: 14,
+          });
+        }
 
         map.addSource(SOURCE_ID, {
           type: "geojson",
@@ -650,6 +695,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           map.setFilter(FILL_LAYER_ID, currentFiltersRef.current);
           map.setFilter(STROKE_LAYER_ID, currentFiltersRef.current);
         }
+
+        // Reaplicar terreno 3D tras cambio de basemap
+        if (terrain3DRef.current) applyTerrain(true);
       },
       [
         handleZoneSelect,
@@ -657,6 +705,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         onInterventionsChange,
         recomputeAll,
         updateDrawLayer,
+        applyTerrain,
       ]
     );
 
@@ -757,8 +806,18 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
             mode === "deficit" ? deficitFillColor() : categoryFillColor()
           );
         },
+
+        set3D(enabled: boolean) {
+          applyTerrain(enabled);
+        },
       }),
-      [addDataLayers, recomputeAll, updateDrawLayer, onInterventionsChange]
+      [
+        addDataLayers,
+        recomputeAll,
+        updateDrawLayer,
+        onInterventionsChange,
+        applyTerrain,
+      ]
     );
 
     useEffect(() => {
