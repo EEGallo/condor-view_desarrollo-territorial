@@ -18,6 +18,8 @@ export type ZoneProperties = {
   dist_escuela_m?: number;
   dist_salud_m?: number;
   deficit_servicios?: number;
+  tiempo_huella_min?: number;
+  tiempo_servicio_min?: number;
   en_oasis?: boolean;
   distrito?: string;
   flags: string[];

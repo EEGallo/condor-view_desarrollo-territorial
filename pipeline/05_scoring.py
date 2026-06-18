@@ -24,6 +24,7 @@ S_NORM_PATH = SCRIPT_DIR / "data" / "s_norm.parquet"
 S_FIS_PATH = SCRIPT_DIR / "data" / "s_fis.parquet"
 S_ACC_PATH = SCRIPT_DIR / "data" / "s_acc.parquet"
 SERVICIOS_PATH = SCRIPT_DIR / "data" / "servicios.parquet"
+ISOCRONAS_PATH = SCRIPT_DIR / "data" / "isocronas.parquet"
 OUTPUT_PATH = SCRIPT_DIR / "data" / "zonas_scored.gpkg"
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
@@ -122,6 +123,16 @@ if __name__ == "__main__":
         df["poblacion_est"] = 0
         df["deficit_servicios"] = 0
 
+    # Isócronas reales (opcional — fallback si 08 no corrió)
+    if ISOCRONAS_PATH.exists():
+        df = df.merge(pd.read_parquet(ISOCRONAS_PATH), on="id", how="left")
+    else:
+        print("ADVERTENCIA: isocronas.parquet no encontrado — tiempos en cap")
+        df["tiempo_huella_min"] = 180
+        df["tiempo_servicio_min"] = 180
+    df["tiempo_huella_min"] = df["tiempo_huella_min"].fillna(180)
+    df["tiempo_servicio_min"] = df["tiempo_servicio_min"].fillna(180)
+
     # --- IAT ---
     iat_raw = 100.0 * (W_NORM * df["s_norm"] + W_FIS * df["s_fis"] + W_ACC * df["s_acc"])
 
@@ -152,6 +163,7 @@ if __name__ == "__main__":
         "uso_permitido", "pendiente_pct", "riesgo_hidrico",
         "elevacion_m", "dist_huella_m", "dist_vial_m", "dist_agua_m",
         "poblacion_est", "dist_escuela_m", "dist_salud_m", "deficit_servicios",
+        "tiempo_huella_min", "tiempo_servicio_min",
         "en_oasis", "distrito", "flags",
         "lon", "lat", "geometry",
     ]

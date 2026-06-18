@@ -13,18 +13,33 @@ const DEFICIT_SCALE: { color: string; label: string }[] = [
   { color: "#1f2937", label: "Sin población" },
 ];
 
+const ISOCRONA_SCALE: { color: string; label: string }[] = [
+  { color: "#22c55e", label: "< 8 min" },
+  { color: "#eab308", label: "~15 min" },
+  { color: "#ef4444", label: "~30 min" },
+  { color: "#1f2937", label: "Sin acceso vial" },
+];
+
+const TITLES: Record<ColorMode, string> = {
+  aptitud: "Aptitud territorial",
+  deficit: "Déficit de servicios",
+  isocronas: "Tiempo a servicios",
+};
+
 type LegendProps = {
   mode?: ColorMode;
 };
 
 export function Legend({ mode = "aptitud" }: LegendProps) {
-  const isDeficit = mode === "deficit";
-  const items = isDeficit
-    ? DEFICIT_SCALE
-    : CATEGORIES.map((cat) => ({
-        color: CATEGORY_COLORS[cat],
-        label: CATEGORY_LABELS[cat],
-      }));
+  const items =
+    mode === "deficit"
+      ? DEFICIT_SCALE
+      : mode === "isocronas"
+        ? ISOCRONA_SCALE
+        : CATEGORIES.map((cat) => ({
+            color: CATEGORY_COLORS[cat],
+            label: CATEGORY_LABELS[cat],
+          }));
 
   return (
     <div
@@ -41,7 +56,7 @@ export function Legend({ mode = "aptitud" }: LegendProps) {
         className="text-[10px] font-semibold uppercase tracking-[0.15em]"
         style={{ color: "var(--text-muted)" }}
       >
-        {isDeficit ? "Déficit de servicios" : "Aptitud territorial"}
+        {TITLES[mode]}
       </span>
 
       {items.map((item) => (

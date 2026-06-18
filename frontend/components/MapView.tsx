@@ -96,7 +96,36 @@ function categoryFillColor(): maplibregl.ExpressionSpecification {
   ];
 }
 
-export type ColorMode = "aptitud" | "deficit";
+export type ColorMode = "aptitud" | "deficit" | "isocronas";
+
+// Bandas de tiempo de viaje a servicios (min). Cap (180) = sin acceso → neutro.
+function isocronaFillColor(): maplibregl.ExpressionSpecification {
+  return [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["get", "tiempo_servicio_min"], 180],
+    0,
+    "#22c55e",
+    8,
+    "#a3e635",
+    15,
+    "#eab308",
+    30,
+    "#ef4444",
+    60,
+    "#7f1d1d",
+    179,
+    "#7f1d1d",
+    180,
+    "#1f2937",
+  ];
+}
+
+function fillColorFor(mode: ColorMode): maplibregl.ExpressionSpecification {
+  if (mode === "deficit") return deficitFillColor();
+  if (mode === "isocronas") return isocronaFillColor();
+  return categoryFillColor();
+}
 
 // Escala secuencial para déficit de servicios (0 = neutro, alto = crítico)
 function deficitFillColor(): maplibregl.ExpressionSpecification {
@@ -449,10 +478,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           type: "fill",
           source: SOURCE_ID,
           paint: {
-            "fill-color":
-              colorModeRef.current === "deficit"
-                ? deficitFillColor()
-                : categoryFillColor(),
+            "fill-color": fillColorFor(colorModeRef.current),
             "fill-opacity": [
               "case",
               ["boolean", ["feature-state", "hover"], false],
@@ -643,6 +669,14 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
               props.deficit_servicios != null
                 ? Number(props.deficit_servicios)
                 : undefined,
+            tiempo_huella_min:
+              props.tiempo_huella_min != null
+                ? Number(props.tiempo_huella_min)
+                : undefined,
+            tiempo_servicio_min:
+              props.tiempo_servicio_min != null
+                ? Number(props.tiempo_servicio_min)
+                : undefined,
             en_oasis:
               props.en_oasis != null ? Boolean(props.en_oasis) : undefined,
             distrito: props.distrito ? String(props.distrito) : undefined,
@@ -800,11 +834,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           colorModeRef.current = mode;
           const map = mapRef.current;
           if (!map || !map.getLayer(FILL_LAYER_ID)) return;
-          map.setPaintProperty(
-            FILL_LAYER_ID,
-            "fill-color",
-            mode === "deficit" ? deficitFillColor() : categoryFillColor()
-          );
+          map.setPaintProperty(FILL_LAYER_ID, "fill-color", fillColorFor(mode));
         },
 
         set3D(enabled: boolean) {

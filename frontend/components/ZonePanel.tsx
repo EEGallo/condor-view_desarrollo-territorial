@@ -31,6 +31,11 @@ function formatServiceDist(meters: number): string {
   return formatDistance(meters);
 }
 
+function formatTiempo(min: number): string {
+  if (min >= 180) return "Sin acceso vial";
+  return `${min.toFixed(0)} min`;
+}
+
 function deficitColor(d: number): string {
   if (d >= 60) return "var(--accent-red)";
   if (d >= 35) return "var(--accent-yellow)";
@@ -286,6 +291,12 @@ export function ZonePanel({ zone, onClose }: ZonePanelProps) {
                     <DetailRow
                       label="Dist. salud"
                       value={formatServiceDist(zone.dist_salud_m)}
+                    />
+                  )}
+                  {zone.tiempo_servicio_min != null && (
+                    <DetailRow
+                      label="Tiempo a servicios"
+                      value={formatTiempo(zone.tiempo_servicio_min)}
                     />
                   )}
                   {zone.deficit_servicios != null && (

@@ -9,7 +9,8 @@ type ViewModeToggleProps = {
 
 const MODES: { key: ColorMode; label: string }[] = [
   { key: "aptitud", label: "Aptitud" },
-  { key: "deficit", label: "Déficit de servicios" },
+  { key: "deficit", label: "Déficit" },
+  { key: "isocronas", label: "Tiempo de viaje" },
 ];
 
 export function ViewModeToggle({ onModeChange }: ViewModeToggleProps) {

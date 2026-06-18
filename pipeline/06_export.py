@@ -59,6 +59,8 @@ def export():
     gdf["dist_escuela_m"] = gdf["dist_escuela_m"].astype(int)
     gdf["dist_salud_m"] = gdf["dist_salud_m"].astype(int)
     gdf["deficit_servicios"] = gdf["deficit_servicios"].astype(int)
+    gdf["tiempo_huella_min"] = gdf["tiempo_huella_min"].round(1)
+    gdf["tiempo_servicio_min"] = gdf["tiempo_servicio_min"].round(1)
     gdf["en_oasis"] = gdf["en_oasis"].astype(bool)
 
     # flags: asegurar que sea lista (puede venir como string de geopackage)

@@ -13,4 +13,5 @@ dependencies = [
     "osmnx>=1.9",
     "elevation>=1.1",
     "pyarrow>=14.0",
+    "scikit-learn>=1.3",
 ]
