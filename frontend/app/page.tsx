@@ -12,6 +12,8 @@ import { LayerToggle } from "@/components/LayerToggle";
 import { InterventionControls } from "@/components/InterventionControls";
 import { InterventionSummary } from "@/components/InterventionSummary";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { IntroHint } from "@/components/IntroHint";
 import type { ZoneProperties, Categoria } from "@/components/types";
 import type {
   MapViewHandle,
@@ -38,7 +40,10 @@ export default function Home() {
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [simSummary, setSimSummary] = useState<SimSummary | null>(null);
   const [colorMode, setColorMode] = useState<ColorMode>("aptitud");
+  const [loading, setLoading] = useState(true);
   const mapRef = useRef<MapViewHandle>(null);
+
+  const handleReady = useCallback(() => setLoading(false), []);
 
   const handleZoneSelect = useCallback((zone: ZoneProperties) => {
     setSelectedZone(zone);
@@ -119,6 +124,7 @@ export default function Home() {
         onHover={handleHover}
         onInterventionsChange={setInterventions}
         onSimSummary={setSimSummary}
+        onReady={handleReady}
       />
 
       {/* Controls */}
@@ -152,6 +158,10 @@ export default function Home() {
 
       {/* Detail panel */}
       <ZonePanel zone={selectedZone} onClose={handleClose} />
+
+      {/* Onboarding + carga */}
+      {!loading && !selectedZone && interventions.length === 0 && <IntroHint />}
+      <LoadingOverlay visible={loading} />
     </main>
   );
 }

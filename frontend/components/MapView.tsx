@@ -41,6 +41,7 @@ type MapViewProps = {
   ) => void;
   onInterventionsChange?: (list: Intervention[]) => void;
   onSimSummary?: (summary: SimSummary | null) => void;
+  onReady?: () => void;
 };
 
 export type MapViewHandle = {
@@ -215,7 +216,7 @@ function polygonCentroid(ring: number[][]): [number, number] {
 
 export const MapView = forwardRef<MapViewHandle, MapViewProps>(
   function MapView(
-    { onZoneSelect, onHover, onInterventionsChange, onSimSummary },
+    { onZoneSelect, onHover, onInterventionsChange, onSimSummary, onReady },
     ref
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -233,6 +234,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     const simModeRef = useRef<InterventionType | null>(null);
     const centroidsRef = useRef<Record<string, [number, number]>>({});
     const colorModeRef = useRef<ColorMode>("aptitud");
+    const onReadyRef = useRef(onReady);
+    onReadyRef.current = onReady;
 
     const handleZoneSelect = useCallback(
       (zone: ZoneProperties) => onZoneSelect(zone),
@@ -801,8 +804,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           }
           centroidsRef.current = centroids;
           addDataLayers(map, geojson);
+          onReadyRef.current?.();
         } catch (err) {
           console.error("Failed to load zonas.geojson:", err);
+          onReadyRef.current?.();
         }
       });
 
