@@ -27,7 +27,18 @@ OUTPUT_PATH = (SCRIPT_DIR / cfg["rutas"]["salida_geojson"]).resolve()
 CRS_OUT = cfg["piloto"]["crs_salida"]
 
 SIMPLIFY_TOLERANCE_M = 20  # metros, antes de reproyectar
-COORD_DECIMALS = 6
+COORD_DECIMALS = 5  # ~1m, sobra para grilla de 2km
+
+# Campos que se omiten cuando tienen su valor default — el frontend los
+# trata como ausentes (coalesce/guards null-safe). Reduce el GeoJSON crudo.
+DEFAULTS_OMITIBLES = {
+    "poblacion_est": 0,
+    "deficit_servicios": 0,
+    "dist_escuela_m": -1,
+    "dist_salud_m": -1,
+    "tiempo_huella_min": 180,
+    "tiempo_servicio_min": 180,
+}
 
 
 def export():
@@ -47,9 +58,9 @@ def export():
 
     # Asegurar tipos correctos
     gdf["iat"] = gdf["iat"].astype(int)
-    gdf["s_norm"] = gdf["s_norm"].round(4)
-    gdf["s_fis"] = gdf["s_fis"].round(4)
-    gdf["s_acc"] = gdf["s_acc"].round(4)
+    gdf["s_norm"] = gdf["s_norm"].round(3)
+    gdf["s_fis"] = gdf["s_fis"].round(3)
+    gdf["s_acc"] = gdf["s_acc"].round(3)
     gdf["pendiente_pct"] = gdf["pendiente_pct"].round(1)
     gdf["elevacion_m"] = gdf["elevacion_m"].astype(int)
     gdf["dist_huella_m"] = gdf["dist_huella_m"].astype(int)
@@ -89,10 +100,17 @@ def export():
             return [round_coords(c) for c in coords]
         return [round(v, COORD_DECIMALS) for v in coords]
 
+    omitidos = 0
     for feat in data["features"]:
         feat["geometry"]["coordinates"] = round_coords(
             feat["geometry"]["coordinates"]
         )
+        props = feat["properties"]
+        for k, default in DEFAULTS_OMITIBLES.items():
+            if k in props and props[k] == default:
+                del props[k]
+                omitidos += 1
+    print(f"Campos default omitidos: {omitidos}")
 
     # Fuente de verdad de umbrales + params de accesibilidad: config.yaml.
     # El frontend los lee de aquí para reclasificar al ajustar pesos
