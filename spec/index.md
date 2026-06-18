@@ -1,8 +1,11 @@
 # Cóndor View — Índice de Aptitud Territorial
 
-**Producto:** Mapa web interactivo que puntúa zonas no desarrolladas según aptitud para inversión inmobiliaria.  
+**Producto:** Mapa web interactivo que puntúa zonas según su **potencial de desarrollo territorial**, con un simulador para previsualizar qué desbloquea cada intervención (ruta, hub urbano, infraestructura).  
+**Usuario primario:** intendente / gestión pública municipal (decisión de planeamiento territorial). Caso secundario: desarrollador/inversor.  
 **Enfoque:** Análisis multicriterio ponderado, sin ML, transparente y explicable.  
-**Métrica de éxito:** Un desarrollador/inversor real dice *"esto cambiaría mi decisión de compra / pagaría por esto."*
+**Métrica de éxito:** Un intendente (o inversor) frente al demo dice *"esto cambiaría mi decisión / pagaría por esto."*
+
+> El IAT se lee como **potencial de desarrollo**, no solo aptitud para compra. El simulador de intervención (ver [scoring.md](scoring.md)) recompone el sub-índice de accesibilidad en vivo cuando se coloca infraestructura hipotética.
 
 ---
 

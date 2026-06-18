@@ -148,4 +148,20 @@ Usa los `s_*` ya guardados en el GeoJSON — no requiere re-ejecutar el pipeline
 
 ---
 
-*Ver también: [pipeline.md](pipeline.md) para implementación Python · [frontend.md](frontend.md) para `WeightControls`*
+## Simulador de intervención (frontend)
+
+Permite colocar infraestructura hipotética sobre el mapa (ruta, hub urbano, traza de agua) y recalcula el potencial en vivo. Una intervención cambia solo la **accesibilidad** — no la zonificación ni la pendiente, y respeta las reglas duras.
+
+Para cada zona cercana a la intervención se recompone la distancia afectada y se recalcula `s_acc` con los parámetros publicados en `metadata.accesibilidad` del GeoJSON:
+
+```js
+// d_huella / d_vial / d_agua = min(distancia base, distancia a la intervención)
+s_acc = 0.45·exp(-d_huella/8000) + 0.35·exp(-d_vial/5000) + 0.20·exp(-d_agua/6000)
+iat   = Math.round(100 * (w_norm·s_norm + w_fis·s_fis + w_acc·s_acc))
+```
+
+El GeoJSON exporta las 3 distancias (`dist_huella_m`, `dist_vial_m`, `dist_agua_m`) y los params en `metadata.accesibilidad` para que el cliente recompute sin backend. El panel antes/después reporta zonas que suben de categoría, hectáreas desbloqueadas y delta de IAT del área impactada.
+
+---
+
+*Ver también: [pipeline.md](pipeline.md) para implementación Python · [frontend.md](frontend.md) para `WeightControls` e `InterventionControls`*

@@ -14,29 +14,47 @@ import { CATEGORY_COLORS } from "./types";
 import type { FilterState } from "./FilterControls";
 import type { BasemapStyle } from "./LayerToggle";
 
+// ---------------------------------------------------------------------------
+// Tipos del simulador de intervención
+// ---------------------------------------------------------------------------
+export type InterventionType = "ruta" | "hub" | "agua";
+
+export type Intervention =
+  | { type: "hub"; coords: [number, number] }
+  | { type: "ruta"; coords: [number, number][] }
+  | { type: "agua"; coords: [number, number][] };
+
+export type SimSummary = {
+  zonasMejoradas: number;
+  hectareasDesbloqueadas: number;
+  iatPromedioAntes: number;
+  iatPromedioDespues: number;
+  totalIntervenciones: number;
+};
+
+type Weights = { w_norm: number; w_fis: number; w_acc: number };
+
 type MapViewProps = {
   onZoneSelect: (zone: ZoneProperties) => void;
   onHover?: (
     info: { x: number; y: number; properties: Record<string, unknown> } | null
   ) => void;
+  onInterventionsChange?: (list: Intervention[]) => void;
+  onSimSummary?: (summary: SimSummary | null) => void;
 };
 
 export type MapViewHandle = {
-  recalculateScores: (weights: {
-    w_norm: number;
-    w_fis: number;
-    w_acc: number;
-  }) => void;
+  recalculateScores: (weights: Weights) => void;
   applyFilters: (filters: FilterState) => void;
   setBasemap: (style: BasemapStyle) => void;
+  setSimMode: (type: InterventionType | null) => void;
+  clearInterventions: () => void;
 };
 
 const BASEMAP_STYLES: Record<BasemapStyle, string> = {
   dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-  satellite:
-    "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-  streets:
-    "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+  satellite: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+  streets: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
 };
 
 const GEOJSON_PATH = "/data/zonas.geojson";
@@ -44,10 +62,15 @@ const SOURCE_ID = "zonas";
 const FILL_LAYER_ID = "zonas-fill";
 const STROKE_LAYER_ID = "zonas-stroke";
 const HIGHLIGHT_LAYER_ID = "zonas-highlight";
+const DRAW_SOURCE_ID = "sim-draw";
+const DRAW_LINE_LAYER_ID = "sim-draw-line";
+const DRAW_POINT_LAYER_ID = "sim-draw-point";
 
 // San Rafael center
-const DEFAULT_CENTER: [number, number] = [-68.333, -34.600];
+const DEFAULT_CENTER: [number, number] = [-68.333, -34.6];
 const DEFAULT_ZOOM = 9;
+
+const HA_POR_ZONA = 400; // grilla 2km × 2km = 4 km² = 400 ha
 
 function categoryFillColor(): maplibregl.ExpressionSpecification {
   return [
@@ -68,6 +91,23 @@ function categoryFillColor(): maplibregl.ExpressionSpecification {
 type Umbrales = { alta: number; media: number };
 const DEFAULT_UMBRALES: Umbrales = { alta: 70, media: 40 };
 
+type AccParams = {
+  d0_huella_m: number;
+  d0_vial_m: number;
+  d0_agua_m: number;
+  w_huella: number;
+  w_vial: number;
+  w_agua: number;
+};
+const DEFAULT_ACC: AccParams = {
+  d0_huella_m: 8000,
+  d0_vial_m: 5000,
+  d0_agua_m: 6000,
+  w_huella: 0.45,
+  w_vial: 0.35,
+  w_agua: 0.2,
+};
+
 function classifyIat(
   iat: number,
   isNoApto: boolean,
@@ -78,6 +118,13 @@ function classifyIat(
   if (iat >= umbrales.media) return "media";
   return "baja";
 }
+
+const CAT_RANK: Record<Categoria, number> = {
+  no_apto: 0,
+  baja: 1,
+  media: 2,
+  alta: 3,
+};
 
 function parseFlags(raw: unknown): string[] {
   if (typeof raw === "string") {
@@ -90,8 +137,67 @@ function parseFlags(raw: unknown): string[] {
   return Array.isArray(raw) ? raw : [];
 }
 
+// --- Geometría: distancias en metros (equirectangular alrededor de San Rafael) ---
+const REF_LAT = -34.6;
+const M_PER_DEG_LNG = 111320 * Math.cos((REF_LAT * Math.PI) / 180);
+const M_PER_DEG_LAT = 110540;
+
+function toXY(lng: number, lat: number): [number, number] {
+  return [lng * M_PER_DEG_LNG, lat * M_PER_DEG_LAT];
+}
+
+function pointToPointM(a: [number, number], b: [number, number]): number {
+  const [ax, ay] = toXY(a[0], a[1]);
+  const [bx, by] = toXY(b[0], b[1]);
+  return Math.hypot(ax - bx, ay - by);
+}
+
+function pointToSegmentM(
+  p: [number, number],
+  v: [number, number],
+  w: [number, number]
+): number {
+  const [px, py] = toXY(p[0], p[1]);
+  const [vx, vy] = toXY(v[0], v[1]);
+  const [wx, wy] = toXY(w[0], w[1]);
+  const l2 = (vx - wx) ** 2 + (vy - wy) ** 2;
+  if (l2 === 0) return Math.hypot(px - vx, py - vy);
+  let t = ((px - vx) * (wx - vx) + (py - vy) * (wy - vy)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const projx = vx + t * (wx - vx);
+  const projy = vy + t * (wy - vy);
+  return Math.hypot(px - projx, py - projy);
+}
+
+function distanceToIntervention(
+  centroid: [number, number],
+  itv: Intervention
+): number {
+  if (itv.type === "hub") return pointToPointM(centroid, itv.coords);
+  let min = Infinity;
+  for (let i = 0; i < itv.coords.length - 1; i++) {
+    const d = pointToSegmentM(centroid, itv.coords[i], itv.coords[i + 1]);
+    if (d < min) min = d;
+  }
+  return min;
+}
+
+function polygonCentroid(ring: number[][]): [number, number] {
+  let sx = 0;
+  let sy = 0;
+  const n = ring.length - 1; // último punto repite el primero
+  for (let i = 0; i < n; i++) {
+    sx += ring[i][0];
+    sy += ring[i][1];
+  }
+  return [sx / n, sy / n];
+}
+
 export const MapView = forwardRef<MapViewHandle, MapViewProps>(
-  function MapView({ onZoneSelect, onHover }, ref) {
+  function MapView(
+    { onZoneSelect, onHover, onInterventionsChange, onSimSummary },
+    ref
+  ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
     const hoveredIdRef = useRef<string | null>(null);
@@ -100,10 +206,164 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
       null
     );
 
+    // Simulador
+    const weightsRef = useRef<Weights>({ w_norm: 0.4, w_fis: 0.3, w_acc: 0.3 });
+    const interventionsRef = useRef<Intervention[]>([]);
+    const drawPointsRef = useRef<[number, number][]>([]);
+    const simModeRef = useRef<InterventionType | null>(null);
+    const centroidsRef = useRef<Record<string, [number, number]>>({});
+
     const handleZoneSelect = useCallback(
       (zone: ZoneProperties) => onZoneSelect(zone),
       [onZoneSelect]
     );
+
+    // Recálculo unificado: aplica pesos actuales + intervenciones activas.
+    const recomputeAll = useCallback(() => {
+      const map = mapRef.current;
+      const geojson = geojsonRef.current;
+      if (!map || !geojson) return;
+
+      const w = weightsRef.current;
+      const interventions = interventionsRef.current;
+      const meta = (
+        geojson as {
+          metadata?: { umbrales?: Umbrales; accesibilidad?: AccParams };
+        }
+      ).metadata;
+      const umbrales = meta?.umbrales ?? DEFAULT_UMBRALES;
+      const acc = meta?.accesibilidad ?? DEFAULT_ACC;
+      const hasItv = interventions.length > 0;
+
+      let sumBefore = 0;
+      let sumAfter = 0;
+      let affected = 0;
+      let mejoradas = 0;
+
+      const features = geojson.features.map((f) => {
+        const p = f.properties!;
+        const isNoApto =
+          String(p.uso_permitido).includes("reserva") ||
+          (p.elevacion_m != null && Number(p.elevacion_m) > 3000);
+
+        const sAccBase = Number(p.s_acc);
+        let sAcc = sAccBase;
+
+        if (hasItv && !isNoApto) {
+          const c = centroidsRef.current[String(p.id)];
+          if (c) {
+            let dh = Number(p.dist_huella_m);
+            let dv = Number(p.dist_vial_m);
+            let da =
+              p.dist_agua_m != null ? Number(p.dist_agua_m) : Infinity;
+            let changed = false;
+            for (const itv of interventions) {
+              const d = distanceToIntervention(c, itv);
+              if (itv.type === "hub" && d < dh) {
+                dh = d;
+                changed = true;
+              } else if (itv.type === "ruta" && d < dv) {
+                dv = d;
+                changed = true;
+              } else if (itv.type === "agua" && d < da) {
+                da = d;
+                changed = true;
+              }
+            }
+            if (changed) {
+              sAcc =
+                acc.w_huella * Math.exp(-dh / acc.d0_huella_m) +
+                acc.w_vial * Math.exp(-dv / acc.d0_vial_m) +
+                acc.w_agua * Math.exp(-da / acc.d0_agua_m);
+            }
+          }
+        }
+
+        const base =
+          w.w_norm * Number(p.s_norm) + w.w_fis * Number(p.s_fis);
+        const iatBefore = isNoApto
+          ? 0
+          : Math.round(100 * (base + w.w_acc * sAccBase));
+        const iatAfter = isNoApto
+          ? 0
+          : Math.round(100 * (base + w.w_acc * sAcc));
+        const categoria = classifyIat(iatAfter, isNoApto, umbrales);
+
+        if (hasItv && iatAfter !== iatBefore) {
+          affected++;
+          sumBefore += iatBefore;
+          sumAfter += iatAfter;
+          const catBefore = classifyIat(iatBefore, isNoApto, umbrales);
+          if (CAT_RANK[categoria] > CAT_RANK[catBefore]) mejoradas++;
+        }
+
+        return { ...f, properties: { ...p, iat: iatAfter, categoria } };
+      });
+
+      const source = map.getSource(SOURCE_ID) as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (source)
+        source.setData({ type: "FeatureCollection", features });
+
+      if (onSimSummary) {
+        onSimSummary(
+          hasItv
+            ? {
+                zonasMejoradas: mejoradas,
+                hectareasDesbloqueadas: mejoradas * HA_POR_ZONA,
+                iatPromedioAntes: affected ? sumBefore / affected : 0,
+                iatPromedioDespues: affected ? sumAfter / affected : 0,
+                totalIntervenciones: interventions.length,
+              }
+            : null
+        );
+      }
+    }, [onSimSummary]);
+
+    // Dibuja las intervenciones colocadas + traza en progreso.
+    const updateDrawLayer = useCallback(() => {
+      const map = mapRef.current;
+      if (!map) return;
+      const source = map.getSource(DRAW_SOURCE_ID) as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (!source) return;
+
+      const feats: GeoJSON.Feature[] = [];
+      for (const itv of interventionsRef.current) {
+        if (itv.type === "hub") {
+          feats.push({
+            type: "Feature",
+            properties: { kind: "hub" },
+            geometry: { type: "Point", coordinates: itv.coords },
+          });
+        } else {
+          feats.push({
+            type: "Feature",
+            properties: { kind: itv.type },
+            geometry: { type: "LineString", coordinates: itv.coords },
+          });
+        }
+      }
+      // Traza en progreso
+      const pts = drawPointsRef.current;
+      if (pts.length >= 2) {
+        feats.push({
+          type: "Feature",
+          properties: { kind: "draft" },
+          geometry: { type: "LineString", coordinates: pts },
+        });
+      }
+      for (const pt of pts) {
+        feats.push({
+          type: "Feature",
+          properties: { kind: "vertex" },
+          geometry: { type: "Point", coordinates: pt },
+        });
+      }
+      source.setData({ type: "FeatureCollection", features: feats });
+    }, []);
 
     const addDataLayers = useCallback(
       (map: maplibregl.Map, geojson: GeoJSON.FeatureCollection) => {
@@ -162,6 +422,55 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           filter: ["==", "id", ""],
         });
 
+        // Capas de dibujo del simulador
+        if (!map.getSource(DRAW_SOURCE_ID)) {
+          map.addSource(DRAW_SOURCE_ID, {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+          map.addLayer({
+            id: DRAW_LINE_LAYER_ID,
+            type: "line",
+            source: DRAW_SOURCE_ID,
+            paint: {
+              "line-color": [
+                "match",
+                ["get", "kind"],
+                "agua",
+                "#3b82f6",
+                "ruta",
+                "#22d3ee",
+                "#22d3ee",
+              ],
+              "line-width": 4,
+              "line-opacity": 0.9,
+            },
+          });
+          map.addLayer({
+            id: DRAW_POINT_LAYER_ID,
+            type: "circle",
+            source: DRAW_SOURCE_ID,
+            paint: {
+              "circle-radius": [
+                "match",
+                ["get", "kind"],
+                "hub",
+                8,
+                5,
+              ],
+              "circle-color": [
+                "match",
+                ["get", "kind"],
+                "hub",
+                "#22d3ee",
+                "#ffffff",
+              ],
+              "circle-stroke-color": "#0a0e14",
+              "circle-stroke-width": 2,
+            },
+          });
+        }
+
         // Fit bounds to data
         const bounds = new maplibregl.LngLatBounds();
         for (const feature of geojson.features) {
@@ -180,6 +489,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
 
         // Hover
         map.on("mousemove", FILL_LAYER_ID, (e) => {
+          if (simModeRef.current) return;
           if (!e.features || e.features.length === 0) return;
           map.getCanvas().style.cursor = "pointer";
 
@@ -211,7 +521,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         });
 
         map.on("mouseleave", FILL_LAYER_ID, () => {
-          map.getCanvas().style.cursor = "";
+          if (!simModeRef.current) map.getCanvas().style.cursor = "";
           if (hoveredIdRef.current !== null) {
             map.setFeatureState(
               { source: SOURCE_ID, id: hoveredIdRef.current },
@@ -222,8 +532,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           if (onHover) onHover(null);
         });
 
-        // Click
+        // Click en zona (deshabilitado en modo simulación)
         map.on("click", FILL_LAYER_ID, (e) => {
+          if (simModeRef.current) return;
           if (!e.features || e.features.length === 0) return;
           const props = e.features[0].properties;
           if (!props) return;
@@ -238,10 +549,14 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
             uso_permitido: String(props.uso_permitido),
             pendiente_pct: Number(props.pendiente_pct),
             riesgo_hidrico: String(props.riesgo_hidrico),
-            elevacion_m: props.elevacion_m != null ? Number(props.elevacion_m) : undefined,
+            elevacion_m:
+              props.elevacion_m != null ? Number(props.elevacion_m) : undefined,
             dist_huella_m: Number(props.dist_huella_m),
             dist_vial_m: Number(props.dist_vial_m),
-            en_oasis: props.en_oasis != null ? Boolean(props.en_oasis) : undefined,
+            dist_agua_m:
+              props.dist_agua_m != null ? Number(props.dist_agua_m) : undefined,
+            en_oasis:
+              props.en_oasis != null ? Boolean(props.en_oasis) : undefined,
             distrito: props.distrito ? String(props.distrito) : undefined,
             flags: parseFlags(props.flags),
           };
@@ -250,51 +565,64 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           handleZoneSelect(zoneData);
         });
 
+        // Click a nivel mapa: colocar intervención
+        map.on("click", (e) => {
+          const mode = simModeRef.current;
+          if (!mode) return;
+          const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+          if (mode === "hub") {
+            interventionsRef.current = [
+              ...interventionsRef.current,
+              { type: "hub", coords: lngLat },
+            ];
+            onInterventionsChange?.(interventionsRef.current);
+            recomputeAll();
+            updateDrawLayer();
+          } else {
+            drawPointsRef.current = [...drawPointsRef.current, lngLat];
+            updateDrawLayer();
+          }
+        });
+
+        // Doble click: cerrar la traza (ruta/agua)
+        map.on("dblclick", (e) => {
+          const mode = simModeRef.current;
+          if (!mode || mode === "hub") return;
+          e.preventDefault();
+          const pts = drawPointsRef.current;
+          if (pts.length >= 2) {
+            interventionsRef.current = [
+              ...interventionsRef.current,
+              { type: mode, coords: [...pts] },
+            ];
+            onInterventionsChange?.(interventionsRef.current);
+            recomputeAll();
+          }
+          drawPointsRef.current = [];
+          updateDrawLayer();
+        });
+
         // Reapply filters if they existed
         if (currentFiltersRef.current) {
           map.setFilter(FILL_LAYER_ID, currentFiltersRef.current);
           map.setFilter(STROKE_LAYER_ID, currentFiltersRef.current);
         }
       },
-      [handleZoneSelect, onHover]
+      [
+        handleZoneSelect,
+        onHover,
+        onInterventionsChange,
+        recomputeAll,
+        updateDrawLayer,
+      ]
     );
 
     useImperativeHandle(
       ref,
       () => ({
         recalculateScores(weights) {
-          const map = mapRef.current;
-          const geojson = geojsonRef.current;
-          if (!map || !geojson) return;
-
-          const umbrales =
-            (geojson as { metadata?: { umbrales?: Umbrales } }).metadata
-              ?.umbrales ?? DEFAULT_UMBRALES;
-
-          const updated: GeoJSON.FeatureCollection = {
-            type: "FeatureCollection",
-            features: geojson.features.map((f) => {
-              const p = f.properties!;
-              const isNoApto =
-                String(p.uso_permitido).includes("reserva") ||
-                (p.elevacion_m != null && Number(p.elevacion_m) > 3000);
-              const iat = isNoApto
-                ? 0
-                : Math.round(
-                    100 *
-                      (weights.w_norm * p.s_norm +
-                        weights.w_fis * p.s_fis +
-                        weights.w_acc * p.s_acc)
-                  );
-              const categoria = classifyIat(iat, isNoApto, umbrales);
-              return { ...f, properties: { ...p, iat, categoria } };
-            }),
-          };
-
-          const source = map.getSource(SOURCE_ID) as
-            | maplibregl.GeoJSONSource
-            | undefined;
-          if (source) source.setData(updated);
+          weightsRef.current = weights;
+          recomputeAll();
         },
 
         applyFilters(filters: FilterState) {
@@ -352,10 +680,31 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
             map.setPitch(pitch);
             map.setBearing(bearing);
             addDataLayers(map, geojson);
+            updateDrawLayer();
+            recomputeAll();
           });
         },
+
+        setSimMode(type: InterventionType | null) {
+          const map = mapRef.current;
+          simModeRef.current = type;
+          drawPointsRef.current = [];
+          updateDrawLayer();
+          if (!map) return;
+          if (type && type !== "hub") map.doubleClickZoom.disable();
+          else map.doubleClickZoom.enable();
+          map.getCanvas().style.cursor = type ? "crosshair" : "";
+        },
+
+        clearInterventions() {
+          interventionsRef.current = [];
+          drawPointsRef.current = [];
+          onInterventionsChange?.([]);
+          updateDrawLayer();
+          recomputeAll();
+        },
       }),
-      [addDataLayers]
+      [addDataLayers, recomputeAll, updateDrawLayer, onInterventionsChange]
     );
 
     useEffect(() => {
@@ -387,6 +736,19 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           const response = await fetch(GEOJSON_PATH);
           const geojson = await response.json();
           geojsonRef.current = geojson;
+          // Precomputar centroides para el simulador
+          const centroids: Record<string, [number, number]> = {};
+          for (const f of geojson.features as GeoJSON.Feature[]) {
+            if (
+              f.geometry.type === "Polygon" &&
+              f.properties?.id != null
+            ) {
+              centroids[String(f.properties.id)] = polygonCentroid(
+                f.geometry.coordinates[0] as number[][]
+              );
+            }
+          }
+          centroidsRef.current = centroids;
           addDataLayers(map, geojson);
         } catch (err) {
           console.error("Failed to load zonas.geojson:", err);

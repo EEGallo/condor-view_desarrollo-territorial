@@ -54,6 +54,7 @@ def export():
     gdf["elevacion_m"] = gdf["elevacion_m"].astype(int)
     gdf["dist_huella_m"] = gdf["dist_huella_m"].astype(int)
     gdf["dist_vial_m"] = gdf["dist_vial_m"].astype(int)
+    gdf["dist_agua_m"] = gdf["dist_agua_m"].astype(int)
     gdf["en_oasis"] = gdf["en_oasis"].astype(bool)
 
     # flags: asegurar que sea lista (puede venir como string de geopackage)
@@ -87,13 +88,24 @@ def export():
             feat["geometry"]["coordinates"]
         )
 
-    # Fuente de verdad de umbrales de categoría: config.yaml.
-    # El frontend los lee de aquí para reclasificar al ajustar pesos.
+    # Fuente de verdad de umbrales + params de accesibilidad: config.yaml.
+    # El frontend los lee de aquí para reclasificar al ajustar pesos
+    # y para recomputar s_acc en el simulador de intervención.
+    acc = cfg["umbrales"]["accesibilidad"]
     data["metadata"] = {
         "umbrales": {
             "alta": cfg["categorias"]["alta"],
             "media": cfg["categorias"]["media"],
-        }
+        },
+        "accesibilidad": {
+            "d0_huella_m": acc["d0_huella_m"],
+            "d0_vial_m": acc["d0_vial_m"],
+            "d0_agua_m": acc["d0_agua_m"],
+            # Pesos de los componentes de s_acc (ver 04_accesibilidad.py)
+            "w_huella": 0.45,
+            "w_vial": 0.35,
+            "w_agua": 0.20,
+        },
     }
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:

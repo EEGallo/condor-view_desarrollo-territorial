@@ -139,7 +139,7 @@ if __name__ == "__main__":
         "id", "iat", "categoria",
         "s_norm", "s_fis", "s_acc",
         "uso_permitido", "pendiente_pct", "riesgo_hidrico",
-        "elevacion_m", "dist_huella_m", "dist_vial_m",
+        "elevacion_m", "dist_huella_m", "dist_vial_m", "dist_agua_m",
         "en_oasis", "distrito", "flags",
         "lon", "lat", "geometry",
     ]

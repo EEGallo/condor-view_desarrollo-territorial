@@ -13,6 +13,7 @@ export type ZoneProperties = {
   elevacion_m?: number;
   dist_huella_m: number;
   dist_vial_m: number;
+  dist_agua_m?: number;
   en_oasis?: boolean;
   distrito?: string;
   flags: string[];
