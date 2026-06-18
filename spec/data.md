@@ -1,20 +1,30 @@
 # Fuentes de Datos
 
-## Estado actual: datos sintéticos
+## Estado actual: datos reales
 
-El pipeline genera un GeoJSON **sintético** basado en reglas geográficas hardcodeadas en `config.yaml`. No se usa DEM real ni OSM real.
+El pipeline usa datos reales descargados (DEM SRTM, OSM, INDEC). `config.yaml` mantiene geografía de respaldo (fallback) si una fuente no está disponible.
 
-| Capa | Estado MVP | Fuente real (futura) |
-|------|-----------|---------------------|
-| Elevación | Sintética — interpolación lineal lon→altitud | IGN MDE-Ar 5m / SRTM 30m |
-| Pendiente | Derivada de elevación sintética | Derivada de DEM real |
-| Red vial | 4 rutas sintéticas (RN40/143/144/146) | OpenStreetMap (Geofabrik) |
-| Huella urbana | 11 radios circulares por localidad | OSM + Sentinel-2 |
-| Ríos | 2 polilíneas (Diamante, Atuel) | OSM + hídricos provinciales |
-| Inundabilidad | Buffer fijo alrededor de ríos | DEM + hídricos + mapas INA |
-| Catastro | Grilla 2km regular | IDE Mendoza / Catastro provincial |
-| Zonificación | Reglas por ubicación (oasis/montaña/etc.) | Ordenanza municipal San Rafael |
-| Basemap | CARTO Dark Matter | Igual |
+| Capa | Fuente actual | Estado |
+|------|--------------|--------|
+| Elevación / pendiente | DEM SRTM3 90m (reproyectado EPSG:5343) | ✅ Real |
+| Red vial | OpenStreetMap (osmnx) | ✅ Real |
+| Ríos / hídrico | OpenStreetMap waterways + embalses config | ✅ Real + config |
+| Uso del suelo (S_norm) | OSM landuse (proxy de ordenanza) | ✅ Real (proxy) |
+| Localidades / huella | OSM places | ✅ Real |
+| Educación / salud | OSM amenities (161 / 69) | ✅ Real |
+| **Población** | **INDEC Censo 2022 — radios censales** | ✅ Real |
+| Isócronas | osmnx + networkx (red vial del oasis) | ✅ Real |
+| Catastro | Grilla 2km regular | ⏳ Pendiente (IDE Mendoza) |
+| Zonificación oficial | OSM landuse como proxy | ⏳ Pendiente (ordenanza San Rafael) |
+| Basemap | CARTO Dark Matter | ✅ |
+
+### Población — INDEC Censo 2022
+
+Fuente: CONICET RI handle `11336/284095` (radios censales 2022 con población REDATAM). Descarga: `00_descarga/indec.py` → filtra departamento San Rafael → `data/raw/indec_radios.gpkg`.
+
+- **228 radios censales** en San Rafael, **170.004 hab** asignados a 55 celdas de grilla.
+- El dataset filtra radios con densidad > 1 hab/ha — excluye población rural dispersa (de ahí < ~215k del departamento total). Capta la población concentrada, que es la relevante para el gap servicios↔población.
+- Columna población: `CA3`; cascada en `07_servicios.py` la usa como **nivel 1** (sobre OSM places y config).
 
 ---
 
