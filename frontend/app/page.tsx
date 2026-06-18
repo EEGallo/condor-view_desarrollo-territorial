@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { MapView } from "@/components/MapView";
 import { ZonePanel } from "@/components/ZonePanel";
 import { Legend } from "@/components/Legend";
@@ -15,7 +15,11 @@ import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { TerrainToggle } from "@/components/TerrainToggle";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { IntroHint } from "@/components/IntroHint";
-import type { ZoneProperties, Categoria } from "@/components/types";
+import { ProjectsControl } from "@/components/ProjectsControl";
+import { ProjectForm } from "@/components/ProjectForm";
+import type { ProjectFormData } from "@/components/ProjectForm";
+import { ProjectPanel } from "@/components/ProjectPanel";
+import type { ZoneProperties, Categoria, Proyecto } from "@/components/types";
 import type {
   MapViewHandle,
   Intervention,
@@ -35,6 +39,8 @@ type HoverInfo = {
   uso: string;
 };
 
+const PROJECTS_KEY = "condor_proyectos_v1";
+
 export default function Home() {
   const [selectedZone, setSelectedZone] = useState<ZoneProperties | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
@@ -42,9 +48,80 @@ export default function Home() {
   const [simSummary, setSimSummary] = useState<SimSummary | null>(null);
   const [colorMode, setColorMode] = useState<ColorMode>("aptitud");
   const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Proyecto[]>([]);
+  const [projectsVisible, setProjectsVisible] = useState(true);
+  const [addingProject, setAddingProject] = useState(false);
+  const [pendingCoords, setPendingCoords] = useState<[number, number] | null>(
+    null
+  );
+  const [selectedProject, setSelectedProject] = useState<Proyecto | null>(null);
   const mapRef = useRef<MapViewHandle>(null);
 
   const handleReady = useCallback(() => setLoading(false), []);
+
+  // Cargar proyectos: seed estático + altas locales (localStorage)
+  useEffect(() => {
+    let local: Proyecto[] = [];
+    try {
+      local = JSON.parse(localStorage.getItem(PROJECTS_KEY) || "[]");
+    } catch {
+      local = [];
+    }
+    fetch("/data/proyectos.json")
+      .then((r) => r.json())
+      .then((seed: Proyecto[]) => setProjects([...seed, ...local]))
+      .catch(() => setProjects(local));
+  }, []);
+
+  const persistLocal = useCallback((all: Proyecto[]) => {
+    const local = all.filter((p) => p.id.startsWith("P-local"));
+    try {
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(local));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleToggleAddProject = useCallback((v: boolean) => {
+    setAddingProject(v);
+    mapRef.current?.setProjectMode(v);
+  }, []);
+
+  const handleProjectPlaced = useCallback((coords: [number, number]) => {
+    setPendingCoords(coords);
+    setAddingProject(false);
+    mapRef.current?.setProjectMode(false);
+  }, []);
+
+  const handleSaveProject = useCallback(
+    (data: ProjectFormData) => {
+      if (!pendingCoords) return;
+      const nuevo: Proyecto = {
+        id: `P-local-${Date.now()}`,
+        coords: pendingCoords,
+        ...data,
+      };
+      setProjects((prev) => {
+        const all = [...prev, nuevo];
+        persistLocal(all);
+        return all;
+      });
+      setPendingCoords(null);
+    },
+    [pendingCoords, persistLocal]
+  );
+
+  const handleDeleteProject = useCallback(
+    (id: string) => {
+      setProjects((prev) => {
+        const all = prev.filter((p) => p.id !== id);
+        persistLocal(all);
+        return all;
+      });
+      setSelectedProject(null);
+    },
+    [persistLocal]
+  );
 
   const handleZoneSelect = useCallback((zone: ZoneProperties) => {
     setSelectedZone(zone);
@@ -130,6 +207,10 @@ export default function Home() {
         onInterventionsChange={setInterventions}
         onSimSummary={setSimSummary}
         onReady={handleReady}
+        projects={projects}
+        projectsVisible={projectsVisible}
+        onProjectPlaced={handleProjectPlaced}
+        onProjectSelect={setSelectedProject}
       />
 
       {/* Controls */}
@@ -144,6 +225,24 @@ export default function Home() {
       />
       <InterventionSummary summary={simSummary} />
       <ViewModeToggle onModeChange={handleColorModeChange} />
+      <ProjectsControl
+        count={projects.length}
+        visible={projectsVisible}
+        adding={addingProject}
+        onToggleVisible={setProjectsVisible}
+        onToggleAdd={handleToggleAddProject}
+      />
+      <ProjectPanel
+        project={selectedProject}
+        onClose={() => setSelectedProject(null)}
+        onDelete={handleDeleteProject}
+      />
+      {pendingCoords && (
+        <ProjectForm
+          onSave={handleSaveProject}
+          onCancel={() => setPendingCoords(null)}
+        />
+      )}
 
       {/* Hover tooltip */}
       {hoverInfo && !selectedZone && (

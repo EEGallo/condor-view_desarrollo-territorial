@@ -1,0 +1,47 @@
+[
+  {
+    "id": "P-seed-01",
+    "nombre": "Centro de salud Las Malvinas",
+    "tipo": "salud",
+    "estado": "en_ejecucion",
+    "descripcion": "Nuevo centro de atención primaria para Las Malvinas y zona rural sur.",
+    "anio": 2026,
+    "coords": [-68.25, -34.83]
+  },
+  {
+    "id": "P-seed-02",
+    "nombre": "Escuela técnica Rama Caída",
+    "tipo": "escuela",
+    "estado": "planeado",
+    "descripcion": "Escuela secundaria técnica con orientación agroindustrial.",
+    "anio": 2027,
+    "coords": [-68.382, -34.678]
+  },
+  {
+    "id": "P-seed-03",
+    "nombre": "Acueducto Monte Comán",
+    "tipo": "agua",
+    "estado": "planeado",
+    "descripcion": "Extensión de red de agua potable hacia Monte Comán y Goudge.",
+    "anio": 2027,
+    "coords": [-67.95, -34.6]
+  },
+  {
+    "id": "P-seed-04",
+    "nombre": "Loteo social Cuadro Benegas",
+    "tipo": "loteo",
+    "estado": "ejecutado",
+    "descripcion": "120 lotes con servicios para relocalización y crecimiento urbano.",
+    "anio": 2025,
+    "coords": [-68.431, -34.623]
+  },
+  {
+    "id": "P-seed-05",
+    "nombre": "Repavimentación RP165",
+    "tipo": "ruta",
+    "estado": "en_ejecucion",
+    "descripcion": "Mejora del corredor productivo hacia Real del Padre y Villa Atuel.",
+    "anio": 2026,
+    "coords": [-67.85, -34.84]
+  }
+]

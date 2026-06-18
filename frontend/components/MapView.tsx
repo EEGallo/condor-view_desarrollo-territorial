@@ -9,8 +9,8 @@ import {
 } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { ZoneProperties, Categoria } from "./types";
-import { CATEGORY_COLORS } from "./types";
+import type { ZoneProperties, Categoria, Proyecto } from "./types";
+import { CATEGORY_COLORS, PROYECTO_ESTADO_COLORS } from "./types";
 import type { FilterState } from "./FilterControls";
 import type { BasemapStyle } from "./LayerToggle";
 
@@ -42,6 +42,10 @@ type MapViewProps = {
   onInterventionsChange?: (list: Intervention[]) => void;
   onSimSummary?: (summary: SimSummary | null) => void;
   onReady?: () => void;
+  projects?: Proyecto[];
+  projectsVisible?: boolean;
+  onProjectPlaced?: (coords: [number, number]) => void;
+  onProjectSelect?: (project: Proyecto) => void;
 };
 
 export type MapViewHandle = {
@@ -52,6 +56,7 @@ export type MapViewHandle = {
   clearInterventions: () => void;
   setColorMode: (mode: ColorMode) => void;
   set3D: (enabled: boolean) => void;
+  setProjectMode: (enabled: boolean) => void;
 };
 
 const BASEMAP_STYLES: Record<BasemapStyle, string> = {
@@ -70,6 +75,8 @@ const DRAW_LINE_LAYER_ID = "sim-draw-line";
 const DRAW_POINT_LAYER_ID = "sim-draw-point";
 const TERRAIN_SOURCE_ID = "terrain-dem";
 const HILLSHADE_LAYER_ID = "terrain-hillshade";
+const PROJECTS_SOURCE_ID = "proyectos";
+const PROJECTS_LAYER_ID = "proyectos-circle";
 // Tiles terrain-RGB públicos (AWS Open Data, sin API key)
 const TERRARIUM_TILES =
   "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
@@ -251,7 +258,17 @@ function polygonCentroid(ring: number[][]): [number, number] {
 
 export const MapView = forwardRef<MapViewHandle, MapViewProps>(
   function MapView(
-    { onZoneSelect, onHover, onInterventionsChange, onSimSummary, onReady },
+    {
+      onZoneSelect,
+      onHover,
+      onInterventionsChange,
+      onSimSummary,
+      onReady,
+      projects,
+      projectsVisible = true,
+      onProjectPlaced,
+      onProjectSelect,
+    },
     ref
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -270,8 +287,32 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     const centroidsRef = useRef<Record<string, [number, number]>>({});
     const colorModeRef = useRef<ColorMode>("aptitud");
     const terrain3DRef = useRef(false);
+    const projectModeRef = useRef(false);
+    const projectsRef = useRef<Proyecto[]>(projects ?? []);
+    const onProjectPlacedRef = useRef(onProjectPlaced);
+    onProjectPlacedRef.current = onProjectPlaced;
+    const onProjectSelectRef = useRef(onProjectSelect);
+    onProjectSelectRef.current = onProjectSelect;
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
+
+    // Sincroniza la capa de proyectos con el source de maplibre.
+    const updateProjectsLayer = useCallback(() => {
+      const map = mapRef.current;
+      if (!map) return;
+      const source = map.getSource(PROJECTS_SOURCE_ID) as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (!source) return;
+      source.setData({
+        type: "FeatureCollection",
+        features: projectsRef.current.map((p) => ({
+          type: "Feature",
+          properties: { id: p.id, estado: p.estado },
+          geometry: { type: "Point", coordinates: p.coords },
+        })),
+      });
+    }, []);
 
     // Activa/desactiva terreno 3D (terrarium) + hillshade + pitch.
     const applyTerrain = useCallback((enabled: boolean) => {
@@ -569,6 +610,52 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           });
         }
 
+        // Capa de proyectos (obras/desarrollos) — encima de todo
+        if (!map.getSource(PROJECTS_SOURCE_ID)) {
+          map.addSource(PROJECTS_SOURCE_ID, {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+          map.addLayer({
+            id: PROJECTS_LAYER_ID,
+            type: "circle",
+            source: PROJECTS_SOURCE_ID,
+            paint: {
+              "circle-radius": 7,
+              "circle-color": [
+                "match",
+                ["get", "estado"],
+                "planeado",
+                PROYECTO_ESTADO_COLORS.planeado,
+                "en_ejecucion",
+                PROYECTO_ESTADO_COLORS.en_ejecucion,
+                "ejecutado",
+                PROYECTO_ESTADO_COLORS.ejecutado,
+                "#ffffff",
+              ],
+              "circle-stroke-color": "#0a0e14",
+              "circle-stroke-width": 2,
+            },
+          });
+
+          map.on("mouseenter", PROJECTS_LAYER_ID, () => {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", PROJECTS_LAYER_ID, () => {
+            if (!simModeRef.current && !projectModeRef.current)
+              map.getCanvas().style.cursor = "";
+          });
+          map.on("click", PROJECTS_LAYER_ID, (e) => {
+            if (projectModeRef.current) return;
+            const id = e.features?.[0]?.properties?.id;
+            const proj = projectsRef.current.find((p) => p.id === id);
+            if (proj) {
+              e.preventDefault();
+              onProjectSelectRef.current?.(proj);
+            }
+          });
+        }
+
         // Fit bounds to data
         const bounds = new maplibregl.LngLatBounds();
         for (const feature of geojson.features) {
@@ -630,10 +717,18 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           if (onHover) onHover(null);
         });
 
-        // Click en zona (deshabilitado en modo simulación)
+        // Click en zona (deshabilitado en modo simulación o alta de proyecto)
         map.on("click", FILL_LAYER_ID, (e) => {
-          if (simModeRef.current) return;
+          if (simModeRef.current || projectModeRef.current) return;
           if (!e.features || e.features.length === 0) return;
+          // Si hay un marcador de proyecto bajo el cursor, lo maneja su capa
+          if (
+            map.getLayer(PROJECTS_LAYER_ID) &&
+            map.queryRenderedFeatures(e.point, {
+              layers: [PROJECTS_LAYER_ID],
+            }).length > 0
+          )
+            return;
           const props = e.features[0].properties;
           if (!props) return;
 
@@ -689,6 +784,11 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
 
         // Click a nivel mapa: colocar intervención
         map.on("click", (e) => {
+          // Alta de proyecto: el click coloca la obra
+          if (projectModeRef.current) {
+            onProjectPlacedRef.current?.([e.lngLat.lng, e.lngLat.lat]);
+            return;
+          }
           const mode = simModeRef.current;
           if (!mode) return;
           const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
@@ -730,7 +830,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           map.setFilter(STROKE_LAYER_ID, currentFiltersRef.current);
         }
 
-        // Reaplicar terreno 3D tras cambio de basemap
+        // Poblar proyectos + reaplicar terreno tras cambio de basemap
+        updateProjectsLayer();
         if (terrain3DRef.current) applyTerrain(true);
       },
       [
@@ -739,6 +840,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         onInterventionsChange,
         recomputeAll,
         updateDrawLayer,
+        updateProjectsLayer,
         applyTerrain,
       ]
     );
@@ -840,6 +942,12 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         set3D(enabled: boolean) {
           applyTerrain(enabled);
         },
+
+        setProjectMode(enabled: boolean) {
+          projectModeRef.current = enabled;
+          const map = mapRef.current;
+          if (map) map.getCanvas().style.cursor = enabled ? "crosshair" : "";
+        },
       }),
       [
         addDataLayers,
@@ -905,6 +1013,20 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         mapRef.current = null;
       };
     }, [addDataLayers]);
+
+    // Sincronizar proyectos (datos + visibilidad)
+    useEffect(() => {
+      projectsRef.current = projects ?? [];
+      updateProjectsLayer();
+      const map = mapRef.current;
+      if (map && map.getLayer(PROJECTS_LAYER_ID)) {
+        map.setLayoutProperty(
+          PROJECTS_LAYER_ID,
+          "visibility",
+          projectsVisible ? "visible" : "none"
+        );
+      }
+    }, [projects, projectsVisible, updateProjectsLayer]);
 
     return (
       <div

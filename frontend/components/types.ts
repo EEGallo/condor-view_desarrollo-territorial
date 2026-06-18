@@ -25,6 +25,47 @@ export type ZoneProperties = {
   flags: string[];
 };
 
+// --- Registro de proyectos (obras/desarrollos sobre el territorio) ---
+export type ProyectoTipo =
+  | "ruta"
+  | "escuela"
+  | "salud"
+  | "agua"
+  | "loteo"
+  | "otro";
+export type ProyectoEstado = "planeado" | "en_ejecucion" | "ejecutado";
+
+export type Proyecto = {
+  id: string;
+  nombre: string;
+  tipo: ProyectoTipo;
+  estado: ProyectoEstado;
+  descripcion?: string;
+  anio?: number;
+  coords: [number, number];
+};
+
+export const PROYECTO_TIPO_LABELS: Record<ProyectoTipo, string> = {
+  ruta: "Ruta / vial",
+  escuela: "Educación",
+  salud: "Salud",
+  agua: "Agua / saneamiento",
+  loteo: "Loteo / vivienda",
+  otro: "Otro",
+};
+
+export const PROYECTO_ESTADO_LABELS: Record<ProyectoEstado, string> = {
+  planeado: "Planeado",
+  en_ejecucion: "En ejecución",
+  ejecutado: "Ejecutado",
+};
+
+export const PROYECTO_ESTADO_COLORS: Record<ProyectoEstado, string> = {
+  planeado: "#22d3ee",
+  en_ejecucion: "#eab308",
+  ejecutado: "#22c55e",
+};
+
 export const CATEGORY_COLORS: Record<Categoria, string> = {
   alta: "#22c55e",
   media: "#eab308",
