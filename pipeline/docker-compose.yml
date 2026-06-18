@@ -1,0 +1,13 @@
+services:
+  pipeline:
+    build: .
+    volumes:
+      # Repo completo — permite escribir a ../frontend/public/data/
+      - ..:/app
+      # Cache DEM persistente entre builds
+      - dem-cache:/root/.cache/elevation
+    working_dir: /app/pipeline
+    # Sin comando default — usar `docker compose run pipeline python XX_script.py`
+
+volumes:
+  dem-cache:

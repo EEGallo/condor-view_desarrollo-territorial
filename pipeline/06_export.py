@@ -87,6 +87,15 @@ def export():
             feat["geometry"]["coordinates"]
         )
 
+    # Fuente de verdad de umbrales de categoría: config.yaml.
+    # El frontend los lee de aquí para reclasificar al ajustar pesos.
+    data["metadata"] = {
+        "umbrales": {
+            "alta": cfg["categorias"]["alta"],
+            "media": cfg["categorias"]["media"],
+        }
+    }
+
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
 

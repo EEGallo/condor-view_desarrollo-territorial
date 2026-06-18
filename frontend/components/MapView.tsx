@@ -65,10 +65,17 @@ function categoryFillColor(): maplibregl.ExpressionSpecification {
   ];
 }
 
-function classifyIat(iat: number, isNoApto: boolean): Categoria {
+type Umbrales = { alta: number; media: number };
+const DEFAULT_UMBRALES: Umbrales = { alta: 70, media: 40 };
+
+function classifyIat(
+  iat: number,
+  isNoApto: boolean,
+  umbrales: Umbrales
+): Categoria {
   if (isNoApto) return "no_apto";
-  if (iat >= 70) return "alta";
-  if (iat >= 40) return "media";
+  if (iat >= umbrales.alta) return "alta";
+  if (iat >= umbrales.media) return "media";
   return "baja";
 }
 
@@ -260,6 +267,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           const geojson = geojsonRef.current;
           if (!map || !geojson) return;
 
+          const umbrales =
+            (geojson as { metadata?: { umbrales?: Umbrales } }).metadata
+              ?.umbrales ?? DEFAULT_UMBRALES;
+
           const updated: GeoJSON.FeatureCollection = {
             type: "FeatureCollection",
             features: geojson.features.map((f) => {
@@ -275,7 +286,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
                         weights.w_fis * p.s_fis +
                         weights.w_acc * p.s_acc)
                   );
-              const categoria = classifyIat(iat, isNoApto);
+              const categoria = classifyIat(iat, isNoApto, umbrales);
               return { ...f, properties: { ...p, iat, categoria } };
             }),
           };

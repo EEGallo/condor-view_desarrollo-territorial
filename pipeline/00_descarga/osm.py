@@ -11,9 +11,13 @@ Salidas en pipeline/data/raw/:
 
 from pathlib import Path
 
+import time
+
 import geopandas as gpd
 import osmnx as ox
 import yaml
+
+ox.settings.overpass_rate_limit = False
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = SCRIPT_DIR / "config.yaml"
@@ -70,6 +74,9 @@ def download_layer(filename: str, tags: dict, desc: str):
 
 
 if __name__ == "__main__":
-    for fname, params in LAYERS.items():
+    for i, (fname, params) in enumerate(LAYERS.items()):
         download_layer(fname, params["tags"], params["desc"])
+        if i < len(LAYERS) - 1:
+            print("  Pausa 15s entre layers (rate limit) ...")
+            time.sleep(15)
     print("Descarga OSM completa.")
