@@ -2,10 +2,30 @@
 
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "./types";
 import type { Categoria } from "./types";
+import type { ColorMode } from "./MapView";
 
 const CATEGORIES: Categoria[] = ["alta", "media", "baja", "no_apto"];
 
-export function Legend() {
+const DEFICIT_SCALE: { color: string; label: string }[] = [
+  { color: "#ef4444", label: "Déficit crítico" },
+  { color: "#eab308", label: "Déficit medio" },
+  { color: "#22c55e", label: "Bien servida" },
+  { color: "#1f2937", label: "Sin población" },
+];
+
+type LegendProps = {
+  mode?: ColorMode;
+};
+
+export function Legend({ mode = "aptitud" }: LegendProps) {
+  const isDeficit = mode === "deficit";
+  const items = isDeficit
+    ? DEFICIT_SCALE
+    : CATEGORIES.map((cat) => ({
+        color: CATEGORY_COLORS[cat],
+        label: CATEGORY_LABELS[cat],
+      }));
+
   return (
     <div
       className="fixed bottom-6 left-6 z-20 flex flex-col gap-2 rounded-xl px-4 py-3"
@@ -21,23 +41,20 @@ export function Legend() {
         className="text-[10px] font-semibold uppercase tracking-[0.15em]"
         style={{ color: "var(--text-muted)" }}
       >
-        Aptitud territorial
+        {isDeficit ? "Déficit de servicios" : "Aptitud territorial"}
       </span>
 
-      {CATEGORIES.map((cat) => (
-        <div key={cat} className="flex items-center gap-2.5">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-2.5">
           <span
             className="inline-block h-2.5 w-2.5 rounded-full"
             style={{
-              background: CATEGORY_COLORS[cat],
-              boxShadow: `0 0 6px ${CATEGORY_COLORS[cat]}50`,
+              background: item.color,
+              boxShadow: `0 0 6px ${item.color}50`,
             }}
           />
-          <span
-            className="text-xs"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {CATEGORY_LABELS[cat]}
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            {item.label}
           </span>
         </div>
       ))}

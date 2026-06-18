@@ -14,6 +14,10 @@ export type ZoneProperties = {
   dist_huella_m: number;
   dist_vial_m: number;
   dist_agua_m?: number;
+  poblacion_est?: number;
+  dist_escuela_m?: number;
+  dist_salud_m?: number;
+  deficit_servicios?: number;
   en_oasis?: boolean;
   distrito?: string;
   flags: string[];

@@ -11,12 +11,14 @@ import { MapTooltip } from "@/components/MapTooltip";
 import { LayerToggle } from "@/components/LayerToggle";
 import { InterventionControls } from "@/components/InterventionControls";
 import { InterventionSummary } from "@/components/InterventionSummary";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
 import type { ZoneProperties, Categoria } from "@/components/types";
 import type {
   MapViewHandle,
   Intervention,
   InterventionType,
   SimSummary,
+  ColorMode,
 } from "@/components/MapView";
 import type { FilterState } from "@/components/FilterControls";
 import type { BasemapStyle } from "@/components/LayerToggle";
@@ -35,6 +37,7 @@ export default function Home() {
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [simSummary, setSimSummary] = useState<SimSummary | null>(null);
+  const [colorMode, setColorMode] = useState<ColorMode>("aptitud");
   const mapRef = useRef<MapViewHandle>(null);
 
   const handleZoneSelect = useCallback((zone: ZoneProperties) => {
@@ -87,6 +90,11 @@ export default function Home() {
     mapRef.current?.clearInterventions();
   }, []);
 
+  const handleColorModeChange = useCallback((mode: ColorMode) => {
+    setColorMode(mode);
+    mapRef.current?.setColorMode(mode);
+  }, []);
+
   return (
     <main className="relative" style={{ width: "100vw", height: "100vh" }}>
       {/* Title */}
@@ -123,6 +131,7 @@ export default function Home() {
         onClear={handleClearInterventions}
       />
       <InterventionSummary summary={simSummary} />
+      <ViewModeToggle onModeChange={handleColorModeChange} />
 
       {/* Hover tooltip */}
       {hoverInfo && !selectedZone && (
@@ -138,7 +147,7 @@ export default function Home() {
       )}
 
       {/* Info panels */}
-      <Legend />
+      <Legend mode={colorMode} />
       <StatsBar />
 
       {/* Detail panel */}

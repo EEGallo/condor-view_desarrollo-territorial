@@ -49,6 +49,7 @@ export type MapViewHandle = {
   setBasemap: (style: BasemapStyle) => void;
   setSimMode: (type: InterventionType | null) => void;
   clearInterventions: () => void;
+  setColorMode: (mode: ColorMode) => void;
 };
 
 const BASEMAP_STYLES: Record<BasemapStyle, string> = {
@@ -85,6 +86,25 @@ function categoryFillColor(): maplibregl.ExpressionSpecification {
     "no_apto",
     CATEGORY_COLORS.no_apto,
     "#374151",
+  ];
+}
+
+export type ColorMode = "aptitud" | "deficit";
+
+// Escala secuencial para déficit de servicios (0 = neutro, alto = crítico)
+function deficitFillColor(): maplibregl.ExpressionSpecification {
+  return [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["get", "deficit_servicios"], 0],
+    0,
+    "#1f2937",
+    1,
+    "#22c55e",
+    35,
+    "#eab308",
+    60,
+    "#ef4444",
   ];
 }
 
@@ -212,6 +232,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     const drawPointsRef = useRef<[number, number][]>([]);
     const simModeRef = useRef<InterventionType | null>(null);
     const centroidsRef = useRef<Record<string, [number, number]>>({});
+    const colorModeRef = useRef<ColorMode>("aptitud");
 
     const handleZoneSelect = useCallback(
       (zone: ZoneProperties) => onZoneSelect(zone),
@@ -380,7 +401,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           type: "fill",
           source: SOURCE_ID,
           paint: {
-            "fill-color": categoryFillColor(),
+            "fill-color":
+              colorModeRef.current === "deficit"
+                ? deficitFillColor()
+                : categoryFillColor(),
             "fill-opacity": [
               "case",
               ["boolean", ["feature-state", "hover"], false],
@@ -555,6 +579,22 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
             dist_vial_m: Number(props.dist_vial_m),
             dist_agua_m:
               props.dist_agua_m != null ? Number(props.dist_agua_m) : undefined,
+            poblacion_est:
+              props.poblacion_est != null
+                ? Number(props.poblacion_est)
+                : undefined,
+            dist_escuela_m:
+              props.dist_escuela_m != null
+                ? Number(props.dist_escuela_m)
+                : undefined,
+            dist_salud_m:
+              props.dist_salud_m != null
+                ? Number(props.dist_salud_m)
+                : undefined,
+            deficit_servicios:
+              props.deficit_servicios != null
+                ? Number(props.deficit_servicios)
+                : undefined,
             en_oasis:
               props.en_oasis != null ? Boolean(props.en_oasis) : undefined,
             distrito: props.distrito ? String(props.distrito) : undefined,
@@ -702,6 +742,17 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           onInterventionsChange?.([]);
           updateDrawLayer();
           recomputeAll();
+        },
+
+        setColorMode(mode: ColorMode) {
+          colorModeRef.current = mode;
+          const map = mapRef.current;
+          if (!map || !map.getLayer(FILL_LAYER_ID)) return;
+          map.setPaintProperty(
+            FILL_LAYER_ID,
+            "fill-color",
+            mode === "deficit" ? deficitFillColor() : categoryFillColor()
+          );
         },
       }),
       [addDataLayers, recomputeAll, updateDrawLayer, onInterventionsChange]

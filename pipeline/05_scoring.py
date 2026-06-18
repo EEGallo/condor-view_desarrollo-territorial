@@ -23,6 +23,7 @@ ZONAS_PATH = SCRIPT_DIR / "data" / "zonas_grid.gpkg"
 S_NORM_PATH = SCRIPT_DIR / "data" / "s_norm.parquet"
 S_FIS_PATH = SCRIPT_DIR / "data" / "s_fis.parquet"
 S_ACC_PATH = SCRIPT_DIR / "data" / "s_acc.parquet"
+SERVICIOS_PATH = SCRIPT_DIR / "data" / "servicios.parquet"
 OUTPUT_PATH = SCRIPT_DIR / "data" / "zonas_scored.gpkg"
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
@@ -111,6 +112,16 @@ if __name__ == "__main__":
     df = df.merge(s_fis_df, on="id")
     df = df.merge(s_acc_df, on="id")
 
+    # Capa población + servicios (opcional — fallback si 07 no corrió)
+    if SERVICIOS_PATH.exists():
+        df = df.merge(pd.read_parquet(SERVICIOS_PATH), on="id", how="left")
+    else:
+        print("ADVERTENCIA: servicios.parquet no encontrado — campos en 0")
+        for c in ["dist_escuela_m", "dist_salud_m"]:
+            df[c] = -1
+        df["poblacion_est"] = 0
+        df["deficit_servicios"] = 0
+
     # --- IAT ---
     iat_raw = 100.0 * (W_NORM * df["s_norm"] + W_FIS * df["s_fis"] + W_ACC * df["s_acc"])
 
@@ -140,6 +151,7 @@ if __name__ == "__main__":
         "s_norm", "s_fis", "s_acc",
         "uso_permitido", "pendiente_pct", "riesgo_hidrico",
         "elevacion_m", "dist_huella_m", "dist_vial_m", "dist_agua_m",
+        "poblacion_est", "dist_escuela_m", "dist_salud_m", "deficit_servicios",
         "en_oasis", "distrito", "flags",
         "lon", "lat", "geometry",
     ]

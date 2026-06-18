@@ -50,6 +50,19 @@ LAYERS = {
         "tags": {"place": ["city", "town", "village", "hamlet", "suburb"]},
         "desc": "localidades",
     },
+    "osm_educacion.gpkg": {
+        "tags": {
+            "amenity": ["school", "kindergarten", "college", "university"]
+        },
+        "desc": "establecimientos educativos",
+    },
+    "osm_salud.gpkg": {
+        "tags": {
+            "amenity": ["hospital", "clinic", "doctors", "pharmacy"],
+            "healthcare": True,
+        },
+        "desc": "establecimientos de salud",
+    },
 }
 
 

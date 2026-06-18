@@ -26,6 +26,18 @@ function formatDistance(meters: number): string {
   return `${Math.round(meters)} m`;
 }
 
+function formatServiceDist(meters: number): string {
+  if (meters < 0) return "s/d";
+  return formatDistance(meters);
+}
+
+function deficitColor(d: number): string {
+  if (d >= 60) return "var(--accent-red)";
+  if (d >= 35) return "var(--accent-yellow)";
+  if (d > 0) return "var(--accent-green)";
+  return "var(--text-muted)";
+}
+
 function riesgoColor(riesgo: string): string {
   const map: Record<string, string> = {
     bajo: "var(--accent-green)",
@@ -236,6 +248,61 @@ export function ZonePanel({ zone, onClose }: ZonePanelProps) {
                 )}
               </div>
             </div>
+
+            {/* Población y servicios */}
+            {(zone.poblacion_est != null ||
+              zone.deficit_servicios != null) && (
+              <div className="flex flex-col gap-3">
+                <span
+                  className="text-[10px] font-semibold uppercase tracking-[0.2em]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Población y servicios
+                </span>
+                <div
+                  className="flex flex-col gap-0 overflow-hidden rounded-xl"
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  {zone.poblacion_est != null && (
+                    <DetailRow
+                      label="Población estimada"
+                      value={
+                        zone.poblacion_est > 0
+                          ? `${zone.poblacion_est.toLocaleString("es-AR")} hab`
+                          : "Sin población"
+                      }
+                    />
+                  )}
+                  {zone.dist_escuela_m != null && (
+                    <DetailRow
+                      label="Dist. escuela"
+                      value={formatServiceDist(zone.dist_escuela_m)}
+                    />
+                  )}
+                  {zone.dist_salud_m != null && (
+                    <DetailRow
+                      label="Dist. salud"
+                      value={formatServiceDist(zone.dist_salud_m)}
+                    />
+                  )}
+                  {zone.deficit_servicios != null && (
+                    <DetailRow
+                      label="Déficit de servicios"
+                      value={
+                        zone.deficit_servicios > 0
+                          ? `${zone.deficit_servicios} / 100`
+                          : "—"
+                      }
+                      valueColor={deficitColor(zone.deficit_servicios)}
+                      isLast
+                    />
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Flags */}
             {zone.flags.length > 0 && (
