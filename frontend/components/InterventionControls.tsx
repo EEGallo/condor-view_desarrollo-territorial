@@ -178,7 +178,9 @@ export function InterventionControls({
           >
             {interventions.length === 0
               ? "Colocá infraestructura y verás cómo cambia el potencial del territorio"
-              : `${interventions.length} intervención${interventions.length > 1 ? "es" : ""} activa${interventions.length > 1 ? "s" : ""}`}
+              : interventions.length > 1
+                ? `${interventions.length} intervenciones activas`
+                : "1 intervención activa"}
           </p>
         </div>
       )}

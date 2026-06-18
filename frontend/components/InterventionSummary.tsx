@@ -14,7 +14,7 @@ export function InterventionSummary({ summary }: InterventionSummaryProps) {
 
   return (
     <div
-      className="fixed left-1/2 top-20 z-20 -translate-x-1/2 rounded-xl px-6 py-4"
+      className="fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-xl px-6 py-4"
       style={{
         background: "var(--bg-glass)",
         backdropFilter: "blur(24px) saturate(1.6)",
@@ -32,8 +32,10 @@ export function InterventionSummary({ summary }: InterventionSummaryProps) {
             Impacto simulado
           </span>
           <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-            {summary.totalIntervenciones} intervención
-            {summary.totalIntervenciones > 1 ? "es" : ""}
+            {summary.totalIntervenciones}{" "}
+            {summary.totalIntervenciones > 1
+              ? "intervenciones"
+              : "intervención"}
           </span>
         </div>
 
