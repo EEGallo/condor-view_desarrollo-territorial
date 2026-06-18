@@ -74,7 +74,7 @@ export function InterventionControls({
     : null;
 
   return (
-    <div className="fixed top-6 z-20" style={{ right: 290 }}>
+    <div className="relative">
       <button
         onClick={handleToggleOpen}
         className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all"
@@ -102,7 +102,7 @@ export function InterventionControls({
 
       {isOpen && (
         <div
-          className="mt-2 flex flex-col gap-4 rounded-xl p-5"
+          className="absolute right-0 top-full z-30 mt-2 flex flex-col gap-4 rounded-xl p-5"
           style={{
             background: "var(--bg-glass)",
             backdropFilter: "blur(24px) saturate(1.6)",

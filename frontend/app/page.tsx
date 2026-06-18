@@ -216,22 +216,27 @@ export default function Home() {
       {/* Controls */}
       <LayerToggle onStyleChange={handleStyleChange} />
       <TerrainToggle onToggle={handleTerrainToggle} />
-      <FilterControls onFiltersChange={handleFiltersChange} />
-      <WeightControls onWeightsChange={handleWeightsChange} />
-      <InterventionControls
-        interventions={interventions}
-        onModeChange={handleSimModeChange}
-        onClear={handleClearInterventions}
-      />
+
+      {/* Toolbar superior derecha — fila flex para que no se superpongan */}
+      <div className="fixed top-6 right-6 z-20 flex flex-wrap items-start justify-end gap-2">
+        <FilterControls onFiltersChange={handleFiltersChange} />
+        <WeightControls onWeightsChange={handleWeightsChange} />
+        <InterventionControls
+          interventions={interventions}
+          onModeChange={handleSimModeChange}
+          onClear={handleClearInterventions}
+        />
+        <ProjectsControl
+          count={projects.length}
+          visible={projectsVisible}
+          adding={addingProject}
+          onToggleVisible={setProjectsVisible}
+          onToggleAdd={handleToggleAddProject}
+        />
+      </div>
+
       <InterventionSummary summary={simSummary} />
       <ViewModeToggle onModeChange={handleColorModeChange} />
-      <ProjectsControl
-        count={projects.length}
-        visible={projectsVisible}
-        adding={addingProject}
-        onToggleVisible={setProjectsVisible}
-        onToggleAdd={handleToggleAddProject}
-      />
       <ProjectPanel
         project={selectedProject}
         onClose={() => setSelectedProject(null)}
