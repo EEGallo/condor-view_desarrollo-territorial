@@ -1,0 +1,6 @@
+# Large binary data — download locally with pipeline scripts
+*.tif
+*.gpkg
+*.parquet
+raw/
+!.gitignore
