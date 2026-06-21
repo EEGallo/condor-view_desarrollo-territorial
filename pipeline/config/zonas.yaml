@@ -4,44 +4,54 @@
 # San Rafael es Caso B: la capa ArcGIS trae la categoría (campo 'zona') pero
 # NO los indicadores. Estos se resuelven acá.
 #
-# Las CLAVES deben coincidir EXACTO con los valores del campo 'zona' del
-# FeatureServer (diagnóstico PASO 0): URBANA | SUBURBANA | RURAL | SECANA.
-# Categoría faltante (p.ej. ' ' vacío) -> warning + campos null (degradación).
+# Las CLAVES coinciden EXACTO con los valores del campo 'zona' del FeatureServer
+# (PASO 0): URBANA | SUBURBANA | RURAL | SECANA. Categoría vacía (' ') -> warning
+# + campos null (degradación).
 #
-# uso_permitido alimenta s_norm (ver USO_S_NORM en lib/normativa_resolver.py).
-# Los FOS/FOT/altura son PLACEHOLDER <TODO>: Ema los completa con la
-# Ordenanza de zonificación de San Rafael (PMOT / Ord. 15214).
+# FUENTE: Ordenanza Nº 12998 (Zonificación de Áreas), Anexo II — Planilla de
+# Superficies Mínimas, HCD San Rafael. Marco: Ord. 15214 (PMOT, Oasis / Zona No
+# Irrigada).
+#
+# IMPORTANTE — FOS/FOT/altura_max en null A PROPÓSITO:
+#   La Ord. 12998 define FOS/FOT como "Según zona" (no publica un valor numérico
+#   único por estas categorías gruesas; varía por sub-zona de detalle). El código
+#   de edificación trae "factor de ocupación" de ocupación interior (pers/m²) y
+#   alturas mínimas de locales, NO el FOS/FOT urbano ni altura máxima por zona.
+#   => No se inventan: quedan null y el resolver degrada (uso_permitido alimenta
+#      s_norm). Completar si aparece la tabla de detalle por sub-zona.
+#
+# SÍ son datos reales (Anexo II): uso, densidad y superficie mínima de parcela.
 
 zonas:
-  URBANA:
+  URBANA:                       # Ord 12998: Sub área Urbano consolidado
     uso_permitido: [residencial_media, comercial]
-    fos: 0.60          # <TODO: confirmar con Ordenanza>
-    fot: 1.5           # <TODO>
-    altura_max_m: 12   # <TODO>
-    densidad: media
-    sup_min_lote_m2: 300   # <TODO>
-    fuente: "Ordenanza San Rafael, art. <TODO>"
-  SUBURBANA:
+    fos: null
+    fot: null
+    altura_max_m: null
+    densidad: alta              # > 70 Hab/Ha
+    sup_min_lote_m2: 200        # Anexo II
+    fuente: "Ordenanza 12998 (Zonificación de Áreas), Anexo II — Urbano consolidado"
+  SUBURBANA:                    # Ord 12998: Urbano no consolidado / Interface Periurbana
     uso_permitido: [residencial_baja, residencial_media]
-    fos: 0.50          # <TODO>
-    fot: 1.0           # <TODO>
-    altura_max_m: 9    # <TODO>
-    densidad: baja
-    sup_min_lote_m2: 500   # <TODO>
-    fuente: "Ordenanza San Rafael, art. <TODO>"
-  RURAL:
+    fos: null
+    fot: null
+    altura_max_m: null
+    densidad: media             # no consolidado > 70 / periurbana < 70 Hab/Ha
+    sup_min_lote_m2: 300        # Anexo II (no consolidado)
+    fuente: "Ordenanza 12998 (Zonificación de Áreas), Anexo II — Urbano no consolidado"
+  RURAL:                        # Ord 12998: Área Rural Irrigada / Interface Ambiental Rural I
     uso_permitido: [agricola]
-    fos: 0.10          # <TODO>
-    fot: 0.2           # <TODO>
-    altura_max_m: 9    # <TODO>
-    densidad: baja
-    sup_min_lote_m2: 5000  # <TODO>
-    fuente: "Ordenanza San Rafael, art. <TODO>"
-  SECANA:
+    fos: null
+    fot: null
+    altura_max_m: null
+    densidad: baja              # < 30 Hab/Ha
+    sup_min_lote_m2: 1000       # Anexo II (Interface Ambiental Rural I)
+    fuente: "Ordenanza 12998 (Zonificación de Áreas), Anexo II — Interface Ambiental Rural"
+  SECANA:                       # Ord 12998/15214: Área Rural No Irrigada (secano)
     uso_permitido: [rural]
-    fos: 0.05          # <TODO>
-    fot: 0.1           # <TODO>
-    altura_max_m: 9    # <TODO>
-    densidad: baja
-    sup_min_lote_m2: 10000 # <TODO>
-    fuente: "Ordenanza San Rafael, art. <TODO> (zona de secano, no irrigada)"
+    fos: null
+    fot: null
+    altura_max_m: null
+    densidad: baja              # < 30 Hab/Ha
+    sup_min_lote_m2: 2000       # Anexo II (Interface Ambiental Rural II/III)
+    fuente: "Ordenanza 12998 / 15214 — Área Rural No Irrigada (secano)"
