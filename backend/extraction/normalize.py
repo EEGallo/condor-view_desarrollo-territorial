@@ -79,7 +79,7 @@ def build_accesibilidad(geom_m, layers: dict[str, gpd.GeoDataFrame]) -> dict[str
                 }
             )
     return {
-        "dist_huella_urbana_m": None,  # huella urbana: requiere capa places; futuro
+        "dist_huella_urbana_m": _min_dist(geom_m, layers.get("places")),
         "dist_vial_principal_m": _min_dist(geom_m, layers.get("vial")),
         "equipamiento": equipamiento,
     }

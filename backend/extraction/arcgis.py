@@ -44,17 +44,32 @@ def fetch_normativa(polygon: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
     poly_area = poly_m.area or 1.0
 
     modo = normativa_resolver.caso(sources)
-    zonas = []
+
+    # Agregar por categoría: una fila por zona normativa con cobertura sumada,
+    # en vez de una fila por parcela (pueden ser miles). Más útil para el panel.
+    agg: dict[str, dict[str, Any]] = {}
     for z in resolved:
-        out = {k: v for k, v in z.items() if k != "geometry"}
+        cat = (z.get("categoria") or "").strip() or "sin clasificar"
         geom = z.get("geometry")
+        cob = 0.0
         if geom is not None:
             try:
                 zona_m = shp_transform(to_metric, shape(geom))
-                inter = zona_m.intersection(poly_m).area
-                out["cobertura_pct"] = round(inter / poly_area * 100, 1)
+                cob = zona_m.intersection(poly_m).area / poly_area * 100
             except Exception:
-                out["cobertura_pct"] = None
-        zonas.append(out)
+                cob = 0.0
+        if cat not in agg:
+            agg[cat] = {k: v for k, v in z.items() if k != "geometry"}
+            agg[cat]["categoria"] = cat
+            agg[cat]["cobertura_pct"] = 0.0
+            agg[cat]["_n"] = 0
+        agg[cat]["cobertura_pct"] += cob
+        agg[cat]["_n"] += 1
+
+    zonas = []
+    for cat, z in sorted(agg.items(), key=lambda kv: -kv[1]["cobertura_pct"]):
+        z["cobertura_pct"] = round(z["cobertura_pct"], 1)
+        z["n_parcelas"] = z.pop("_n")
+        zonas.append(z)
 
     return {"modo": modo, "zonas": zonas, "restricciones": []}, warnings

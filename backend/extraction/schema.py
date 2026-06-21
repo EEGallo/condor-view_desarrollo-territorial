@@ -26,6 +26,7 @@ class Zona(BaseModel):
     densidad: Optional[str] = None
     sup_min_lote_m2: Optional[float] = None
     cobertura_pct: Optional[float] = None
+    n_parcelas: Optional[int] = None
     source: Optional[str] = None
     fetch_date: Optional[str] = None
     # Crudos + flags de variantes (trazabilidad / citación legal, Capa 3).

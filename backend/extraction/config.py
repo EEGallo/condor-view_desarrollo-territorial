@@ -11,7 +11,8 @@ import yaml
 from . import PIPELINE_DIR
 
 PIPELINE_CONFIG = PIPELINE_DIR / "config.yaml"
-DEM_PATH = PIPELINE_DIR / "data" / "raw" / "dem_san_rafael.tif"
+RAW_DIR = PIPELINE_DIR / "data" / "raw"
+DEM_PATH = RAW_DIR / "dem_san_rafael.tif"
 
 
 @lru_cache(maxsize=1)
