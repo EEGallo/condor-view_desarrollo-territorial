@@ -34,7 +34,8 @@ def fetch_normativa(polygon: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
 
     sources = arcgis_client.load_sources()
     resolved, rw = normativa_resolver.resolve_features(geojson, sources=sources)
-    warnings.extend(rw)
+    # No propagar el warning por-parcela de zona en blanco (se resume abajo).
+    warnings.extend(w for w in rw if "no está en zonas.yaml" not in w)
 
     # cobertura_pct = área(zona ∩ polígono) / área(polígono), en CRS métrico.
     to_metric = Transformer.from_crs(
@@ -71,5 +72,13 @@ def fetch_normativa(polygon: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
         z["cobertura_pct"] = round(z["cobertura_pct"], 1)
         z["n_parcelas"] = z.pop("_n")
         zonas.append(z)
+
+    # Resumen único de parcelas sin categoría (en vez de una por parcela).
+    sc = agg.get("sin clasificar")
+    if sc:
+        warnings.append(
+            f"normativa: {sc.get('n_parcelas')} parcelas con 'zona' en blanco "
+            "(sin indicadores)"
+        )
 
     return {"modo": modo, "zonas": zonas, "restricciones": []}, warnings

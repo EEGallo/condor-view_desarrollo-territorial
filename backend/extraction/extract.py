@@ -68,6 +68,15 @@ async def extract(polygon: dict[str, Any]) -> PolygonContext:
     for h in hidrografia:
         h.setdefault("source", "OSM")
 
+    # Colapsar warnings idénticos en uno con contador (evita ruido repetido).
+    counts: dict[str, int] = {}
+    order: list[str] = []
+    for w in warnings:
+        if w not in counts:
+            order.append(w)
+        counts[w] = counts.get(w, 0) + 1
+    warnings = [f"{w} (x{counts[w]})" if counts[w] > 1 else w for w in order]
+
     return PolygonContext(
         polygon=polygon,
         bbox=bbox,
