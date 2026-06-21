@@ -172,6 +172,25 @@ export function ExtractPanel({
               )}
             </Section>
 
+            {/* Restricciones */}
+            {context.normativa.restricciones.length > 0 && (
+              <Section title="Restricciones">
+                {context.normativa.restricciones.map((r, i, arr) => (
+                  <DetailRow
+                    key={i}
+                    label={r.tipo.replace(/_/g, " ")}
+                    value={
+                      r.geometria_afectada_pct != null
+                        ? `${r.geometria_afectada_pct}% afectado`
+                        : "s/d"
+                    }
+                    valueColor="var(--accent-orange)"
+                    isLast={i === arr.length - 1}
+                  />
+                ))}
+              </Section>
+            )}
+
             {/* Físico */}
             <Section title="Físico">
               <DetailRow
@@ -229,6 +248,31 @@ export function ExtractPanel({
                     isLast={i === arr.length - 1}
                   />
                 ))}
+              </Section>
+            )}
+
+            {/* Parcelas */}
+            {context.parcelas.length > 0 && (
+              <Section title={`Parcelas (${context.parcelas.length})`}>
+                {context.parcelas.slice(0, 8).map((p, i, arr) => (
+                  <DetailRow
+                    key={p.id ?? i}
+                    label={p.id ?? "s/d"}
+                    value={
+                      p.sup_m2 != null
+                        ? `${p.sup_m2.toLocaleString("es-AR")} m²`
+                        : "s/d"
+                    }
+                    isLast={i === arr.length - 1 && context.parcelas.length <= 8}
+                  />
+                ))}
+                {context.parcelas.length > 8 && (
+                  <DetailRow
+                    label="…"
+                    value={`+${context.parcelas.length - 8} más`}
+                    isLast
+                  />
+                )}
               </Section>
             )}
 

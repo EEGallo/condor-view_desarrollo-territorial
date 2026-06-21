@@ -66,6 +66,7 @@ export type ExtractContext = {
     dist_vial_principal_m?: number | null;
     equipamiento: ExtractEquipamiento[];
   };
+  parcelas: { id?: string | null; sup_m2?: number | null; source?: string | null }[];
   warnings: string[];
 };
 

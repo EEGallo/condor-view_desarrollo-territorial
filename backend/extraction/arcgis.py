@@ -16,13 +16,31 @@ from lib import arcgis_client, normativa_resolver
 
 from .config import crs_exchange, crs_metric
 
+# Tope de parcelas listadas (en el centro un polígono toca miles).
+PARCELAS_MAX = 200
+# Campos de la capa de parcelas San Rafael (PASO 0).
+PARCELA_ID_FIELDS = ("nomenclatu", "fid", "id")
+PARCELA_AREA_FIELDS = ("area_m2", "SHAPE__Area")
 
-def fetch_normativa(polygon: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    """Devuelve (normativa_dict, warnings) para un polígono GeoJSON.
+
+def _parcela_props(props: dict[str, Any]) -> dict[str, Any]:
+    pid = next((str(props[f]) for f in PARCELA_ID_FIELDS if props.get(f)), None)
+    sup = next(
+        (float(props[f]) for f in PARCELA_AREA_FIELDS if props.get(f) is not None),
+        None,
+    )
+    return {"id": pid, "sup_m2": round(sup, 1) if sup is not None else None,
+            "source": "UGDT/ArcGIS"}
+
+
+def fetch_normativa(
+    polygon: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
+    """Devuelve (normativa_dict, parcelas, warnings) para un polígono GeoJSON.
 
     normativa_dict ~ {modo, zonas:[...], restricciones:[...]} con cobertura_pct
-    por zona. Degrada a {modo:null, zonas:[]} con warning si ArcGIS no está
-    configurado/cae.
+    por zona. parcelas = lista capada {id, sup_m2, source}. Degrada con warning
+    si ArcGIS no está configurado/cae.
     """
     warnings: list[str] = []
     coords = polygon.get("coordinates")
@@ -30,7 +48,7 @@ def fetch_normativa(polygon: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
     warnings.extend(w)
 
     if geojson is None:
-        return {"modo": None, "zonas": [], "restricciones": []}, warnings
+        return {"modo": None, "zonas": [], "restricciones": []}, [], warnings
 
     sources = arcgis_client.load_sources()
     resolved, rw = normativa_resolver.resolve_features(geojson, sources=sources)
@@ -81,4 +99,15 @@ def fetch_normativa(polygon: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
             "(sin indicadores)"
         )
 
-    return {"modo": modo, "zonas": zonas, "restricciones": []}, warnings
+    # Parcelas (Gap 4): lista capada por superficie desc.
+    feats = geojson.get("features", [])
+    parcelas = [_parcela_props(f.get("properties", {})) for f in feats]
+    parcelas.sort(key=lambda p: p["sup_m2"] or 0, reverse=True)
+    total = len(parcelas)
+    if total > PARCELAS_MAX:
+        parcelas = parcelas[:PARCELAS_MAX]
+        warnings.append(
+            f"parcelas: {total} intersectadas, mostrando las {PARCELAS_MAX} mayores"
+        )
+
+    return {"modo": modo, "zonas": zonas, "restricciones": []}, parcelas, warnings

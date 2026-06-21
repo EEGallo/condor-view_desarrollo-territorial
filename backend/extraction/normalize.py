@@ -104,10 +104,45 @@ def build_hidrografia(geom_m, layers: dict[str, gpd.GeoDataFrame]) -> list[dict[
     ]
 
 
+# Retiro de cauce por defecto (m). No es el valor legal exacto de la ordenanza
+# (que varía por cauce); es un buffer documentado para estimar afectación.
+RETIRO_CAUCE_M = 100
+
+
+def build_restricciones(geom_m, layers: dict[str, gpd.GeoDataFrame]) -> list[dict[str, Any]]:
+    """Restricciones que afectan el polígono. Hoy: retiro de cauce (buffer OSM).
+
+    geometria_afectada_pct = área(polígono ∩ buffer de cauces) / área(polígono).
+    """
+    hid = layers.get("hidrografia")
+    if hid is None or len(hid) == 0:
+        return []
+    hid_m = hid.to_crs(crs_metric())
+    try:
+        buffered = hid_m.geometry.buffer(RETIRO_CAUCE_M).union_all()
+    except AttributeError:  # geopandas viejo
+        from shapely.ops import unary_union
+
+        buffered = unary_union(list(hid_m.geometry.buffer(RETIRO_CAUCE_M)))
+    inter = geom_m.intersection(buffered).area
+    pct = round(inter / (geom_m.area or 1.0) * 100, 1)
+    if pct <= 0:
+        return []
+    return [
+        {
+            "tipo": "retiro_cauce",
+            "geometria_afectada_pct": pct,
+            "source": f"OSM (buffer {RETIRO_CAUCE_M}m)",
+        }
+    ]
+
+
 def riesgo_hidrico(hidrografia: list[dict[str, Any]]) -> str | None:
     if not hidrografia:
         return None
-    d = min((h.get("dist_m") or 1e9) for h in hidrografia)
+    d = min(
+        (h["dist_m"] if h.get("dist_m") is not None else 1e9) for h in hidrografia
+    )
     if d <= RIESGO_ALTO_M:
         return "alto"
     if d <= RIESGO_MOD_M:

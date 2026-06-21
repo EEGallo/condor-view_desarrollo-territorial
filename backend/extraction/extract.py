@@ -32,12 +32,13 @@ async def extract(polygon: dict[str, Any]) -> PolygonContext:
         return_exceptions=True,
     )
 
-    # Normativa
+    # Normativa + parcelas
     if isinstance(norm_res, Exception):
         warnings.append(f"normativa: error ({norm_res})")
         normativa = {"modo": None, "zonas": [], "restricciones": []}
+        parcelas = []
     else:
-        normativa, w = norm_res
+        normativa, parcelas, w = norm_res
         warnings.extend(w)
 
     # OSM (overpass)
@@ -56,9 +57,10 @@ async def extract(polygon: dict[str, Any]) -> PolygonContext:
         fisico, w = terr_res
         warnings.extend(w)
 
-    # Distancias / hidrografía / accesibilidad
+    # Distancias / hidrografía / accesibilidad / restricciones
     hidrografia = normalize.build_hidrografia(geom_m, layers)
     accesibilidad = normalize.build_accesibilidad(geom_m, layers)
+    normativa["restricciones"] = normalize.build_restricciones(geom_m, layers)
     fisico["riesgo_hidrico"] = normalize.riesgo_hidrico(hidrografia)
     fisico["fetch_date"] = _now()
 
@@ -86,6 +88,6 @@ async def extract(polygon: dict[str, Any]) -> PolygonContext:
         fisico=fisico,
         hidrografia=hidrografia,
         accesibilidad=accesibilidad,
-        parcelas=[],
+        parcelas=parcelas,
         warnings=warnings,
     )

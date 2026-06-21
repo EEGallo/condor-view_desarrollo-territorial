@@ -57,8 +57,8 @@ def get_zonas(bbox: str) -> dict:
             [minx, miny], [maxx, miny], [maxx, maxy], [minx, maxy], [minx, miny],
         ]],
     }
-    normativa, warnings = arcgis.fetch_normativa(polygon)
-    return {"normativa": normativa, "warnings": warnings}
+    normativa, parcelas, warnings = arcgis.fetch_normativa(polygon)
+    return {"normativa": normativa, "parcelas": parcelas, "warnings": warnings}
 
 
 @app.get("/api/equipamiento")
