@@ -1,41 +1,39 @@
 # Cóndor View — Fuentes de extracción externas (CAPA 1)
 # Spec: spec/condor-view-spec-capa1-extraccion.md §2
 #
-# Ema completa los <TODO> una sola vez al ver los *Fields* del FeatureServer
-# de la UGDT. Mientras base_url sea <TODO>/vacío, el cliente ArcGIS degrada:
-# devuelve None + warning y el pipeline cae al proxy OSM landuse (02_normativa.py).
+# Zonificación de San Rafael: capa de PARCELAS de la IDE Mendoza (mpipgis1).
+# La capa trae la categoría de zona en el campo 'zona' pero NO indicadores
+# (FOS/FOT/altura) -> field_map de indicadores en null -> dispara CASO B
+# (resolver categoría contra config/zonas.yaml con la Ordenanza).
 #
-# La presencia/ausencia de fos/fot/altura en field_map dispara Caso A vs B:
-#   - valores no nulos  -> Caso A (atributos del feature)
-#   - null              -> Caso B (resolver categoría contra zonas.yaml)
+# Diagnóstico (PASO 0) sobre la capa real:
+#   geometryType : esriGeometryPolygon (81.155 parcelas)
+#   campo categoría: 'zona' -> valores: URBANA | SUBURBANA | RURAL | SECANA | ' '
+#   sin campos fos/fot/altura -> Caso B
 
 arcgis:
-  base_url: "<TODO: https://HOST/server/rest/services/SERVICIO>"
+  base_url: "https://mpipgis1.mendoza.gov.ar/server/rest/services/Hosted/San_Rafael/FeatureServer"
+  verify_ssl: false       # cert gov con cadena incompleta; sin verificación
   zonificacion:
-    layer_id: "<TODO: id numérico de la capa de zonificación>"
+    layer_id: "0"
     auth: none            # none | token
-    token: null           # solo si auth: token
-    # field_map: campo_real_arcgis -> nombre canónico.
-    # Esquema UGDT/Mendoza (confirmado en IU_GC Godoy Cruz): categoría = 'zonific';
-    # indicadores STRING con coma decimal y sentinel "..."; FOS/FOT en 3 variantes.
-    # Si los fos_*/fot_* quedan null -> dispara Caso B (tabla zonas.yaml).
+    token: null
     field_map:
-      categoria: "zonific"
-      # FOS (0..1): 3 variantes; canónico = fos_1 (semántica sin confirmar)
-      fos_1: "fos_1"
-      fos_2: "fos_2"
-      fos_3: "fos_3"
-      # FOT (puede ser >1): 3 variantes
-      fot_1: "fot_1"
-      fot_2: "fot_2"
-      fot_3: "fot_3"
-      altura_max: "altura_max"   # metros (entero como string)
+      categoria: "zona"
+      # San Rafael NO trae indicadores como atributos -> null -> Caso B
+      fos_1: null
+      fos_2: null
+      fos_3: null
+      fot_1: null
+      fot_2: null
+      fot_3: null
+      altura_max: null
       densidad: null
       uso: null
   restricciones:
-    layer_id: null        # null si no hay capa separada
-  catastro:
     layer_id: null
+  catastro:
+    layer_id: "0"          # la misma capa de parcelas sirve de catastro
 
 overpass:
   endpoint: "https://overpass-api.de/api/interpreter"
@@ -51,7 +49,7 @@ overpass:
 terrain:
   dem_provider: srtm              # srtm (pipeline actual) | opentopography
   opentopo_dataset: COP30
-  opentopo_api_key: null          # "<TODO>" solo si dem_provider: opentopography
+  opentopo_api_key: null
 
 crs:
   exchange: "EPSG:4326"

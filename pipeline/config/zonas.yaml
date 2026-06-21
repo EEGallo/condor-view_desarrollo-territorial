@@ -1,38 +1,47 @@
 # Cóndor View — Tabla de indicadores normativos (Caso B)
 # Spec: spec/condor-view-spec-capa1-extraccion.md §6
 #
-# Solo se usa cuando el FeatureServer NO trae FOS/FOT como atributos
-# (field_map.fos/fot/altura = null en sources.yaml).
-# Poblar desde la Ordenanza 15214 (PMOT San Rafael). Ema pasa la tabla.
+# San Rafael es Caso B: la capa ArcGIS trae la categoría (campo 'zona') pero
+# NO los indicadores. Estos se resuelven acá.
 #
-# La 'categoria' (clave) debe coincidir con el valor del campo
-# field_map.categoria del FeatureServer. Categoría faltante -> warning + null.
+# Las CLAVES deben coincidir EXACTO con los valores del campo 'zona' del
+# FeatureServer (diagnóstico PASO 0): URBANA | SUBURBANA | RURAL | SECANA.
+# Categoría faltante (p.ej. ' ' vacío) -> warning + campos null (degradación).
 #
-# Plantilla de ejemplo (NO son valores reales — reemplazar con la Ordenanza):
+# uso_permitido alimenta s_norm (ver USO_S_NORM en lib/normativa_resolver.py).
+# Los FOS/FOT/altura son PLACEHOLDER <TODO>: Ema los completa con la
+# Ordenanza de zonificación de San Rafael (PMOT / Ord. 15214).
 
 zonas:
-  urbana_consolidada:
+  URBANA:
     uso_permitido: [residencial_media, comercial]
-    fos: 0.60
-    fot: 1.5
-    altura_max_m: 12
+    fos: 0.60          # <TODO: confirmar con Ordenanza>
+    fot: 1.5           # <TODO>
+    altura_max_m: 12   # <TODO>
     densidad: media
-    sup_min_lote_m2: 300
-    fuente: "Ordenanza 15214, art. <TODO>"
-  urbana_no_consolidada:
+    sup_min_lote_m2: 300   # <TODO>
+    fuente: "Ordenanza San Rafael, art. <TODO>"
+  SUBURBANA:
     uso_permitido: [residencial_baja, residencial_media]
-    fos: 0.50
-    fot: 1.0
-    altura_max_m: 9
+    fos: 0.50          # <TODO>
+    fot: 1.0           # <TODO>
+    altura_max_m: 9    # <TODO>
     densidad: baja
-    sup_min_lote_m2: 500
-    fuente: "Ordenanza 15214, art. <TODO>"
-  interface_periurbano:
-    uso_permitido: [residencial_baja]
-    fos: 0.40
-    fot: 0.6
-    altura_max_m: 9
+    sup_min_lote_m2: 500   # <TODO>
+    fuente: "Ordenanza San Rafael, art. <TODO>"
+  RURAL:
+    uso_permitido: [agricola]
+    fos: 0.10          # <TODO>
+    fot: 0.2           # <TODO>
+    altura_max_m: 9    # <TODO>
     densidad: baja
-    sup_min_lote_m2: 2500
-    fuente: "Ordenanza 15214, art. <TODO>"
-  # ...resto de categorías del PMOT
+    sup_min_lote_m2: 5000  # <TODO>
+    fuente: "Ordenanza San Rafael, art. <TODO>"
+  SECANA:
+    uso_permitido: [rural]
+    fos: 0.05          # <TODO>
+    fot: 0.1           # <TODO>
+    altura_max_m: 9    # <TODO>
+    densidad: baja
+    sup_min_lote_m2: 10000 # <TODO>
+    fuente: "Ordenanza San Rafael, art. <TODO> (zona de secano, no irrigada)"

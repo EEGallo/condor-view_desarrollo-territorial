@@ -11,6 +11,7 @@ Sin dependencias externas: usa urllib (stdlib).
 from __future__ import annotations
 
 import json
+import ssl
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -139,7 +140,16 @@ def query_layer(
 
     url = _query_url(base_url, layer_id) + "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"User-Agent": "condor-view/1.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+
+    # Algunos servidores gov (p.ej. mendoza.gov.ar) tienen cadena de cert
+    # incompleta. verify_ssl: false usa contexto sin verificación.
+    ctx = None
+    if arc.get("verify_ssl") is False:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
 
     # Si el server no soportó f=geojson y devolvió esri json, convertir.
@@ -177,6 +187,15 @@ def fetch_zonificacion(
             polygon_coordinates=polygon_coordinates,
             bbox=bbox,
         )
+        # No silenciar truncamiento: ArcGIS limita por maxRecordCount.
+        if gj.get("exceededTransferLimit") or gj.get("properties", {}).get(
+            "exceededTransferLimit"
+        ):
+            warnings.append(
+                f"arcgis: respuesta truncada por maxRecordCount "
+                f"({len(gj.get('features', []))} features); falta paginar "
+                "(resultOffset) para cubrir todo el bbox"
+            )
         return gj, warnings
     except Exception as exc:  # red caída, timeout, etc.
         warnings.append(f"arcgis: consulta falló ({exc}); usando fallback OSM landuse")
