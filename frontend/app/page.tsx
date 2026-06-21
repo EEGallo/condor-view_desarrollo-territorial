@@ -26,6 +26,7 @@ import type {
   Categoria,
   Proyecto,
   ExtractContext,
+  SceneModel,
 } from "@/components/types";
 import type {
   MapViewHandle,
@@ -66,6 +67,9 @@ export default function Home() {
   const [extractCtx, setExtractCtx] = useState<ExtractContext | null>(null);
   const [extractLoading, setExtractLoading] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [scene, setScene] = useState<SceneModel | null>(null);
+  const [sceneLoading, setSceneLoading] = useState(false);
+  const [sceneError, setSceneError] = useState<string | null>(null);
   const mapRef = useRef<MapViewHandle>(null);
 
   const handleReady = useCallback(() => setLoading(false), []);
@@ -73,14 +77,22 @@ export default function Home() {
   const API_BASE =
     process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+  const clearScene = useCallback(() => {
+    setScene(null);
+    setSceneError(null);
+    setSceneLoading(false);
+    mapRef.current?.setScene(null);
+  }, []);
+
   const handleToggleDraw = useCallback((v: boolean) => {
     setDrawing(v);
     mapRef.current?.setDrawPolygonMode(v);
     if (v) {
       setSelectedZone(null);
       setSelectedProject(null);
+      clearScene();
     }
-  }, []);
+  }, [clearScene]);
 
   const handlePolygonComplete = useCallback(
     async (polygon: GeoJSON.Polygon) => {
@@ -89,6 +101,7 @@ export default function Home() {
       setExtractError(null);
       setExtractLoading(true);
       setExtractCtx(null);
+      clearScene();
       try {
         const res = await fetch(`${API_BASE}/api/extract`, {
           method: "POST",
@@ -107,7 +120,7 @@ export default function Home() {
         setExtractLoading(false);
       }
     },
-    [API_BASE]
+    [API_BASE, clearScene]
   );
 
   const handleExtractClose = useCallback(() => {
@@ -115,7 +128,33 @@ export default function Home() {
     setExtractError(null);
     setExtractLoading(false);
     mapRef.current?.clearDrawPolygon();
-  }, []);
+    clearScene();
+  }, [clearScene]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!extractCtx) return;
+    setSceneError(null);
+    setSceneLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ context: extractCtx }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const s = (await res.json()) as SceneModel;
+      setScene(s);
+      mapRef.current?.setScene(s);
+    } catch (err) {
+      setSceneError(
+        `No se pudo generar el escenario (${
+          err instanceof Error ? err.message : "error"
+        }).`
+      );
+    } finally {
+      setSceneLoading(false);
+    }
+  }, [extractCtx, API_BASE]);
 
   // Cargar proyectos: seed estático + altas locales (localStorage)
   useEffect(() => {
@@ -335,6 +374,10 @@ export default function Home() {
         loading={extractLoading}
         error={extractError}
         onClose={handleExtractClose}
+        onGenerate={handleGenerate}
+        scene={scene}
+        sceneLoading={sceneLoading}
+        sceneError={sceneError}
       />
 
       {/* Hint mientras dibuja */}

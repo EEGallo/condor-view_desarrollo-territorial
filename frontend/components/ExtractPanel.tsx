@@ -1,12 +1,16 @@
 "use client";
 
-import type { ExtractContext } from "./types";
+import type { ExtractContext, SceneModel } from "./types";
 
 type ExtractPanelProps = {
   context: ExtractContext | null;
   loading: boolean;
   error: string | null;
   onClose: () => void;
+  onGenerate?: () => void;
+  scene?: SceneModel | null;
+  sceneLoading?: boolean;
+  sceneError?: string | null;
 };
 
 function fmtDist(m: number | null | undefined): string {
@@ -36,6 +40,10 @@ export function ExtractPanel({
   loading,
   error,
   onClose,
+  onGenerate,
+  scene,
+  sceneLoading,
+  sceneError,
 }: ExtractPanelProps) {
   const isOpen = loading || error !== null || context !== null;
 
@@ -274,6 +282,77 @@ export function ExtractPanel({
                   />
                 )}
               </Section>
+            )}
+
+            {/* Escenario 3D (CAPA 2) */}
+            {onGenerate && (
+              <div className="flex flex-col gap-3">
+                <span
+                  className="text-[10px] font-semibold uppercase tracking-[0.2em]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Escenario 3D
+                </span>
+                <button
+                  onClick={onGenerate}
+                  disabled={sceneLoading}
+                  className="rounded-lg px-3 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all"
+                  style={{
+                    background: sceneLoading ? "var(--bg-surface)" : "#a78bfa18",
+                    border: "1px solid #a78bfa",
+                    color: "#a78bfa",
+                    cursor: sceneLoading ? "wait" : "pointer",
+                  }}
+                >
+                  {sceneLoading
+                    ? "Generando…"
+                    : scene
+                      ? "Regenerar escenario 3D"
+                      : "Generar escenario 3D"}
+                </button>
+                {sceneError && (
+                  <p className="text-[11px]" style={{ color: "var(--accent-red)" }}>
+                    {sceneError}
+                  </p>
+                )}
+                {scene && (
+                  <div
+                    className="flex flex-col gap-0 overflow-hidden rounded-xl"
+                    style={{
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border-subtle)",
+                    }}
+                  >
+                    <DetailRow label="Lotes" value={`${scene.metricas.n_lotes}`} />
+                    <DetailRow
+                      label="Ocupación propuesta"
+                      value={`${(scene.metricas.ocupacion_propuesta * 100).toFixed(0)}%`}
+                    />
+                    <DetailRow
+                      label="FOT propuesto"
+                      value={scene.metricas.fot_propuesto.toFixed(2)}
+                    />
+                    <DetailRow
+                      label="Verde"
+                      value={`${(scene.metricas.sup_verde_pct * 100).toFixed(1)}%`}
+                      valueColor="var(--accent-green)"
+                    />
+                    <DetailRow
+                      label="Densidad"
+                      value={`${scene.metricas.densidad_lotes_ha} lotes/ha`}
+                    />
+                    <DetailRow
+                      label="Restricciones"
+                      value={
+                        scene.restricciones_respetadas.length
+                          ? scene.restricciones_respetadas.join(", ")
+                          : "ninguna"
+                      }
+                      isLast
+                    />
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Warnings */}

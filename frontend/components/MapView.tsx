@@ -9,7 +9,7 @@ import {
 } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { ZoneProperties, Categoria, Proyecto } from "./types";
+import type { ZoneProperties, Categoria, Proyecto, SceneModel } from "./types";
 import { CATEGORY_COLORS, PROYECTO_ESTADO_COLORS } from "./types";
 import type { FilterState } from "./FilterControls";
 import type { BasemapStyle } from "./LayerToggle";
@@ -60,6 +60,7 @@ export type MapViewHandle = {
   setProjectMode: (enabled: boolean) => void;
   setDrawPolygonMode: (enabled: boolean) => void;
   clearDrawPolygon: () => void;
+  setScene: (scene: SceneModel | null) => void;
 };
 
 const BASEMAP_STYLES: Record<BasemapStyle, string> = {
@@ -81,6 +82,19 @@ const EXTRACT_SOURCE_ID = "extract-draw";
 const EXTRACT_FILL_LAYER_ID = "extract-fill";
 const EXTRACT_LINE_LAYER_ID = "extract-line";
 const EXTRACT_POINT_LAYER_ID = "extract-point";
+// Escena 3D procedural (CAPA 2)
+const SCENE_LOTES_SRC = "scene-lotes";
+const SCENE_LOTES_LAYER = "scene-lotes-fill";
+const SCENE_VERDES_SRC = "scene-verdes";
+const SCENE_VERDES_LAYER = "scene-verdes-fill";
+const SCENE_CALLES_SRC = "scene-calles";
+const SCENE_CALLES_LAYER = "scene-calles-line";
+const SCENE_MASAS_SRC = "scene-masas";
+const SCENE_MASAS_LAYER = "scene-masas-extrusion";
+const EMPTY_FC: GeoJSON.FeatureCollection = {
+  type: "FeatureCollection",
+  features: [],
+};
 const TERRAIN_SOURCE_ID = "terrain-dem";
 const HILLSHADE_LAYER_ID = "terrain-hillshade";
 const PROJECTS_SOURCE_ID = "proyectos";
@@ -308,6 +322,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     const polyDoneRef = useRef<GeoJSON.Polygon | null>(null);
     const onPolygonCompleteRef = useRef(onPolygonComplete);
     onPolygonCompleteRef.current = onPolygonComplete;
+    const sceneRef = useRef<SceneModel | null>(null);
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
 
@@ -542,6 +557,41 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
       source.setData({ type: "FeatureCollection", features: feats });
     }, []);
 
+    // Sincroniza la escena 3D (CAPA 2) con los sources de maplibre.
+    const updateSceneLayer = useCallback(() => {
+      const map = mapRef.current;
+      if (!map || !map.getSource(SCENE_MASAS_SRC)) return;
+      const sc = sceneRef.current;
+      const lotes = map.getSource(SCENE_LOTES_SRC) as maplibregl.GeoJSONSource;
+      const verdes = map.getSource(SCENE_VERDES_SRC) as maplibregl.GeoJSONSource;
+      const calles = map.getSource(SCENE_CALLES_SRC) as maplibregl.GeoJSONSource;
+      const masas = map.getSource(SCENE_MASAS_SRC) as maplibregl.GeoJSONSource;
+      if (!sc) {
+        lotes.setData(EMPTY_FC);
+        verdes.setData(EMPTY_FC);
+        calles.setData(EMPTY_FC);
+        masas.setData(EMPTY_FC);
+        return;
+      }
+      lotes.setData(sc.lotes);
+      verdes.setData(sc.espacios_verdes);
+      calles.setData(sc.calles);
+      masas.setData({
+        type: "FeatureCollection",
+        features: sc.masas.map((m) => ({
+          type: "Feature",
+          properties: {
+            base: m.base_z_m ?? 0,
+            height: (m.base_z_m ?? 0) + m.altura_m,
+            uso: m.uso ?? "otro",
+            altura_m: m.altura_m,
+            n_pisos: m.n_pisos,
+          },
+          geometry: m.footprint,
+        })),
+      });
+    }, []);
+
     const addDataLayers = useCallback(
       (map: maplibregl.Map, geojson: GeoJSON.FeatureCollection) => {
         if (map.getSource(SOURCE_ID)) return;
@@ -694,6 +744,79 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
               "circle-stroke-color": "#a78bfa",
               "circle-stroke-width": 2,
             },
+          });
+        }
+
+        // Escena 3D procedural (CAPA 2): lotes/verdes/calles (2D) + masas (3D)
+        if (!map.getSource(SCENE_MASAS_SRC)) {
+          map.addSource(SCENE_LOTES_SRC, { type: "geojson", data: EMPTY_FC });
+          map.addLayer({
+            id: SCENE_LOTES_LAYER,
+            type: "fill",
+            source: SCENE_LOTES_SRC,
+            paint: {
+              "fill-color": "#3b4252",
+              "fill-opacity": 0.2,
+              "fill-outline-color": "#5e81ac",
+            },
+          });
+          map.addSource(SCENE_VERDES_SRC, { type: "geojson", data: EMPTY_FC });
+          map.addLayer({
+            id: SCENE_VERDES_LAYER,
+            type: "fill",
+            source: SCENE_VERDES_SRC,
+            paint: { "fill-color": "#22c55e", "fill-opacity": 0.35 },
+          });
+          map.addSource(SCENE_CALLES_SRC, { type: "geojson", data: EMPTY_FC });
+          map.addLayer({
+            id: SCENE_CALLES_LAYER,
+            type: "line",
+            source: SCENE_CALLES_SRC,
+            paint: { "line-color": "#64748b", "line-width": 1.5, "line-opacity": 0.7 },
+          });
+          map.addSource(SCENE_MASAS_SRC, { type: "geojson", data: EMPTY_FC });
+          map.addLayer({
+            id: SCENE_MASAS_LAYER,
+            type: "fill-extrusion",
+            source: SCENE_MASAS_SRC,
+            paint: {
+              "fill-extrusion-color": [
+                "match",
+                ["get", "uso"],
+                "residencial_media", "#22d3ee",
+                "residencial_baja", "#38bdf8",
+                "comercial", "#a78bfa",
+                "mixto", "#a78bfa",
+                "agricola", "#84cc16",
+                "#94a3b8",
+              ],
+              "fill-extrusion-height": ["get", "height"],
+              "fill-extrusion-base": ["get", "base"],
+              "fill-extrusion-opacity": 0.85,
+            },
+          });
+
+          // Tooltip por masa: uso, altura, pisos.
+          const scenePopup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+          });
+          map.on("mousemove", SCENE_MASAS_LAYER, (e) => {
+            const p = e.features?.[0]?.properties;
+            if (!p) return;
+            map.getCanvas().style.cursor = "pointer";
+            scenePopup
+              .setLngLat(e.lngLat)
+              .setHTML(
+                `<div style="font:11px ui-monospace,monospace;color:#0a0e14">` +
+                  `<b>${p.uso}</b><br/>altura ${p.altura_m} m · ${p.n_pisos} piso(s)</div>`
+              )
+              .addTo(map);
+          });
+          map.on("mouseleave", SCENE_MASAS_LAYER, () => {
+            if (!simModeRef.current && !drawPolyModeRef.current)
+              map.getCanvas().style.cursor = "";
+            scenePopup.remove();
           });
         }
 
@@ -951,6 +1074,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         // Poblar proyectos + reaplicar terreno tras cambio de basemap
         updateProjectsLayer();
         updateExtractLayer();
+        updateSceneLayer();
         if (terrain3DRef.current) applyTerrain(true);
       },
       [
@@ -960,6 +1084,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         recomputeAll,
         updateDrawLayer,
         updateExtractLayer,
+        updateSceneLayer,
         updateProjectsLayer,
         applyTerrain,
       ]
@@ -1030,6 +1155,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
             addDataLayers(map, geojson);
             updateDrawLayer();
             updateExtractLayer();
+            updateSceneLayer();
             recomputeAll();
           });
         },
@@ -1087,12 +1213,20 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           polyDoneRef.current = null;
           updateExtractLayer();
         },
+
+        setScene(scene: SceneModel | null) {
+          sceneRef.current = scene;
+          updateSceneLayer();
+          const map = mapRef.current;
+          if (map && scene) map.easeTo({ pitch: 55, duration: 800 });
+        },
       }),
       [
         addDataLayers,
         recomputeAll,
         updateDrawLayer,
         updateExtractLayer,
+        updateSceneLayer,
         onInterventionsChange,
         applyTerrain,
       ]

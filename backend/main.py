@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.extraction import arcgis, overpass, terrain
 from backend.extraction.extract import extract
 from backend.extraction.schema import ExtractRequest, PolygonContext
+from backend.procedural.generate import generate as generate_scene
+from backend.procedural.schema import GenerateRequest, SceneModel
 
 app = FastAPI(title="Cóndor View — Extracción", version="1.1")
 
@@ -45,6 +47,14 @@ async def post_extract(req: ExtractRequest) -> PolygonContext:
     if req.polygon.get("type") != "Polygon":
         raise HTTPException(400, "polygon debe ser un GeoJSON Polygon")
     return await extract(req.polygon)
+
+
+@app.post("/api/generate", response_model=SceneModel)
+def post_generate(req: GenerateRequest) -> SceneModel:
+    """CAPA 2: PolygonContext -> escenario 3D procedural (SceneModel)."""
+    if not req.context.get("polygon"):
+        raise HTTPException(400, "context.polygon requerido")
+    return generate_scene(req.context, req.params)
 
 
 @app.get("/api/zonas")

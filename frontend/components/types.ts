@@ -46,6 +46,7 @@ export type ExtractEquipamiento = {
 
 export type ExtractContext = {
   schema_version: string;
+  polygon: GeoJSON.Polygon;
   bbox: number[];
   area_ha: number;
   crs_metric: string;
@@ -67,6 +68,44 @@ export type ExtractContext = {
     equipamiento: ExtractEquipamiento[];
   };
   parcelas: { id?: string | null; sup_m2?: number | null; source?: string | null }[];
+  warnings: string[];
+};
+
+// --- CAPA 2: SceneModel del backend /api/generate ---
+export type Masa = {
+  lote_id: string;
+  footprint: GeoJSON.Polygon;
+  base_z_m: number;
+  altura_m: number;
+  n_pisos: number;
+  uso?: string | null;
+  fos_aplicado?: number | null;
+  fot_aplicado?: number | null;
+};
+
+export type SceneMetricas = {
+  n_lotes: number;
+  sup_total_m2: number;
+  sup_calles_m2: number;
+  sup_lotes_m2: number;
+  sup_verde_m2: number;
+  sup_verde_pct: number;
+  ocupacion_propuesta: number;
+  fot_propuesto: number;
+  densidad_lotes_ha: number;
+};
+
+export type SceneModel = {
+  schema_version: string;
+  crs: string;
+  sistema: string;
+  calles: GeoJSON.FeatureCollection;
+  manzanas: GeoJSON.FeatureCollection;
+  lotes: GeoJSON.FeatureCollection;
+  espacios_verdes: GeoJSON.FeatureCollection;
+  masas: Masa[];
+  metricas: SceneMetricas;
+  restricciones_respetadas: string[];
   warnings: string[];
 };
 
