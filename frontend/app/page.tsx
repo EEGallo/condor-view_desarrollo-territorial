@@ -19,7 +19,14 @@ import { ProjectsControl } from "@/components/ProjectsControl";
 import { ProjectForm } from "@/components/ProjectForm";
 import type { ProjectFormData } from "@/components/ProjectForm";
 import { ProjectPanel } from "@/components/ProjectPanel";
-import type { ZoneProperties, Categoria, Proyecto } from "@/components/types";
+import { ExtractControl } from "@/components/ExtractControl";
+import { ExtractPanel } from "@/components/ExtractPanel";
+import type {
+  ZoneProperties,
+  Categoria,
+  Proyecto,
+  ExtractContext,
+} from "@/components/types";
 import type {
   MapViewHandle,
   Intervention,
@@ -55,9 +62,60 @@ export default function Home() {
     null
   );
   const [selectedProject, setSelectedProject] = useState<Proyecto | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [extractCtx, setExtractCtx] = useState<ExtractContext | null>(null);
+  const [extractLoading, setExtractLoading] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
   const mapRef = useRef<MapViewHandle>(null);
 
   const handleReady = useCallback(() => setLoading(false), []);
+
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+  const handleToggleDraw = useCallback((v: boolean) => {
+    setDrawing(v);
+    mapRef.current?.setDrawPolygonMode(v);
+    if (v) {
+      setSelectedZone(null);
+      setSelectedProject(null);
+    }
+  }, []);
+
+  const handlePolygonComplete = useCallback(
+    async (polygon: GeoJSON.Polygon) => {
+      setDrawing(false);
+      mapRef.current?.setDrawPolygonMode(false);
+      setExtractError(null);
+      setExtractLoading(true);
+      setExtractCtx(null);
+      try {
+        const res = await fetch(`${API_BASE}/api/extract`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ polygon }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setExtractCtx((await res.json()) as ExtractContext);
+      } catch (err) {
+        setExtractError(
+          `No se pudo extraer el contexto (${
+            err instanceof Error ? err.message : "error"
+          }). ¿Está corriendo el backend en ${API_BASE}?`
+        );
+      } finally {
+        setExtractLoading(false);
+      }
+    },
+    [API_BASE]
+  );
+
+  const handleExtractClose = useCallback(() => {
+    setExtractCtx(null);
+    setExtractError(null);
+    setExtractLoading(false);
+    mapRef.current?.clearDrawPolygon();
+  }, []);
 
   // Cargar proyectos: seed estático + altas locales (localStorage)
   useEffect(() => {
@@ -211,6 +269,7 @@ export default function Home() {
         projectsVisible={projectsVisible}
         onProjectPlaced={handleProjectPlaced}
         onProjectSelect={setSelectedProject}
+        onPolygonComplete={handlePolygonComplete}
       />
 
       {/* Controls */}
@@ -233,6 +292,7 @@ export default function Home() {
           onToggleVisible={setProjectsVisible}
           onToggleAdd={handleToggleAddProject}
         />
+        <ExtractControl active={drawing} onToggle={handleToggleDraw} />
       </div>
 
       <InterventionSummary summary={simSummary} />
@@ -268,6 +328,31 @@ export default function Home() {
 
       {/* Detail panel */}
       <ZonePanel zone={selectedZone} onClose={handleClose} />
+
+      {/* Extracción on-demand (CAPA 1) */}
+      <ExtractPanel
+        context={extractCtx}
+        loading={extractLoading}
+        error={extractError}
+        onClose={handleExtractClose}
+      />
+
+      {/* Hint mientras dibuja */}
+      {drawing && (
+        <div
+          className="pointer-events-none fixed bottom-24 left-1/2 z-30 -translate-x-1/2 rounded-xl px-4 py-2.5 text-xs font-medium"
+          style={{
+            background: "var(--bg-glass)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            border: "1px solid #a78bfa",
+            color: "#a78bfa",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+          }}
+        >
+          Click para agregar vértices · doble click para cerrar y analizar
+        </div>
+      )}
 
       {/* Onboarding + carga */}
       {!loading && !selectedZone && interventions.length === 0 && <IntroHint />}

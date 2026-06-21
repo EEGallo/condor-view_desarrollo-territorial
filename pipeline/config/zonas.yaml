@@ -1,0 +1,38 @@
+# Cóndor View — Tabla de indicadores normativos (Caso B)
+# Spec: spec/condor-view-spec-capa1-extraccion.md §6
+#
+# Solo se usa cuando el FeatureServer NO trae FOS/FOT como atributos
+# (field_map.fos/fot/altura = null en sources.yaml).
+# Poblar desde la Ordenanza 15214 (PMOT San Rafael). Ema pasa la tabla.
+#
+# La 'categoria' (clave) debe coincidir con el valor del campo
+# field_map.categoria del FeatureServer. Categoría faltante -> warning + null.
+#
+# Plantilla de ejemplo (NO son valores reales — reemplazar con la Ordenanza):
+
+zonas:
+  urbana_consolidada:
+    uso_permitido: [residencial_media, comercial]
+    fos: 0.60
+    fot: 1.5
+    altura_max_m: 12
+    densidad: media
+    sup_min_lote_m2: 300
+    fuente: "Ordenanza 15214, art. <TODO>"
+  urbana_no_consolidada:
+    uso_permitido: [residencial_baja, residencial_media]
+    fos: 0.50
+    fot: 1.0
+    altura_max_m: 9
+    densidad: baja
+    sup_min_lote_m2: 500
+    fuente: "Ordenanza 15214, art. <TODO>"
+  interface_periurbano:
+    uso_permitido: [residencial_baja]
+    fos: 0.40
+    fot: 0.6
+    altura_max_m: 9
+    densidad: baja
+    sup_min_lote_m2: 2500
+    fuente: "Ordenanza 15214, art. <TODO>"
+  # ...resto de categorías del PMOT

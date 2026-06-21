@@ -1,0 +1,60 @@
+"""Cliente ArcGIS on-demand: zonificación por polígono (spec §4.1, §4.4).
+
+Envuelve pipeline/lib/arcgis_client + normativa_resolver, consultando por el
+polígono dibujado en vez de por bbox del departamento.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from pyproj import Transformer
+from shapely.geometry import shape
+from shapely.ops import transform as shp_transform
+
+from lib import arcgis_client, normativa_resolver
+
+from .config import crs_exchange, crs_metric
+
+
+def fetch_normativa(polygon: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Devuelve (normativa_dict, warnings) para un polígono GeoJSON.
+
+    normativa_dict ~ {modo, zonas:[...], restricciones:[...]} con cobertura_pct
+    por zona. Degrada a {modo:null, zonas:[]} con warning si ArcGIS no está
+    configurado/cae.
+    """
+    warnings: list[str] = []
+    coords = polygon.get("coordinates")
+    geojson, w = arcgis_client.fetch_zonificacion(polygon_coordinates=coords)
+    warnings.extend(w)
+
+    if geojson is None:
+        return {"modo": None, "zonas": [], "restricciones": []}, warnings
+
+    sources = arcgis_client.load_sources()
+    resolved, rw = normativa_resolver.resolve_features(geojson, sources=sources)
+    warnings.extend(rw)
+
+    # cobertura_pct = área(zona ∩ polígono) / área(polígono), en CRS métrico.
+    to_metric = Transformer.from_crs(
+        crs_exchange(), crs_metric(), always_xy=True
+    ).transform
+    poly_m = shp_transform(to_metric, shape(polygon))
+    poly_area = poly_m.area or 1.0
+
+    modo = normativa_resolver.caso(sources)
+    zonas = []
+    for z in resolved:
+        out = {k: v for k, v in z.items() if k != "geometry"}
+        geom = z.get("geometry")
+        if geom is not None:
+            try:
+                zona_m = shp_transform(to_metric, shape(geom))
+                inter = zona_m.intersection(poly_m).area
+                out["cobertura_pct"] = round(inter / poly_area * 100, 1)
+            except Exception:
+                out["cobertura_pct"] = None
+        zonas.append(out)
+
+    return {"modo": modo, "zonas": zonas, "restricciones": []}, warnings

@@ -9,14 +9,20 @@ Nota: proxy de la ordenanza municipal real hasta que se digitalice.
 Salida: pipeline/data/s_norm.parquet
 """
 
+import sys
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import yaml
+from shapely.geometry import shape
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib import arcgis_client, normativa_resolver  # noqa: E402
+
 CONFIG_PATH = SCRIPT_DIR / "config.yaml"
 ZONAS_PATH = SCRIPT_DIR / "data" / "zonas_grid.gpkg"
 LANDUSE_PATH = SCRIPT_DIR / "data" / "raw" / "osm_landuse.gpkg"
@@ -26,6 +32,7 @@ with open(CONFIG_PATH, encoding="utf-8") as f:
     cfg = yaml.safe_load(f)
 
 CRS_WORK = cfg["piloto"]["crs_trabajo"]
+CRS_OUT = cfg["piloto"]["crs_salida"]
 
 # OSM landuse → (uso_permitido, s_norm)
 # Proxy hasta tener la ordenanza de San Rafael digitalizada.
@@ -90,11 +97,68 @@ def compute_s_norm(zonas: gpd.GeoDataFrame, landuse: gpd.GeoDataFrame) -> pd.Dat
     )
 
 
+def compute_s_norm_arcgis(
+    zonas: gpd.GeoDataFrame, geojson: dict
+) -> pd.DataFrame | None:
+    """S_norm desde zonificación real (UGDT/ArcGIS).
+
+    Resuelve Caso A/B por feature, reproyecta a CRS_WORK y asigna a cada celda
+    por centroide-dentro-de-zona. Devuelve None si no hay geometrías usables.
+    """
+    sources = arcgis_client.load_sources()
+    resolved, warns = normativa_resolver.resolve_features(geojson, sources=sources)
+    for w in warns:
+        print(f"  WARN {w}")
+
+    rows = [
+        {"uso_permitido": z["uso_permitido"], "s_norm": z["s_norm"], "geometry": shape(z["geometry"])}
+        for z in resolved
+        if z.get("geometry") is not None
+    ]
+    if not rows:
+        return None
+
+    zonif = gpd.GeoDataFrame(rows, crs=CRS_OUT).to_crs(CRS_WORK)
+
+    zonas_centroid = zonas[["id", "geometry"]].copy()
+    zonas_centroid.geometry = zonas.centroid
+    joined = gpd.sjoin(
+        zonas_centroid, zonif[["geometry", "uso_permitido", "s_norm"]],
+        how="left", predicate="within",
+    )
+    joined = joined[~joined.index.duplicated(keep="first")]
+
+    uso = joined["uso_permitido"].where(joined["uso_permitido"].notna(),
+                                        normativa_resolver.DEFAULT_USO)
+    s = joined["s_norm"].where(joined["s_norm"].notna(),
+                               normativa_resolver.DEFAULT_S_NORM)
+    return pd.DataFrame(
+        {"id": zonas["id"].values, "uso_permitido": uso.values, "s_norm": s.values}
+    )
+
+
 if __name__ == "__main__":
-    print("Cargando grilla y landuse OSM ...")
+    print("Cargando grilla ...")
     zonas = gpd.read_file(ZONAS_PATH)
 
-    if not LANDUSE_PATH.exists():
+    # 1) Intentar zonificación real (UGDT/ArcGIS) si está configurada.
+    bbox = cfg["piloto"]["bbox"]
+    geojson, arc_warns = arcgis_client.fetch_zonificacion(
+        bbox=(bbox["west"], bbox["south"], bbox["east"], bbox["north"])
+    )
+    for w in arc_warns:
+        print(f"  WARN {w}")
+
+    result = None
+    if geojson is not None:
+        print(f"Zonificación ArcGIS: {len(geojson.get('features', []))} features "
+              f"(Caso {normativa_resolver.caso(arcgis_client.load_sources()).upper()})")
+        result = compute_s_norm_arcgis(zonas, geojson)
+
+    # 2) Fallback: proxy OSM landuse (comportamiento histórico).
+    if result is not None:
+        pass
+    elif not LANDUSE_PATH.exists():
         print("ADVERTENCIA: osm_landuse.gpkg no encontrado — asignando defaults")
         result = pd.DataFrame(
             {

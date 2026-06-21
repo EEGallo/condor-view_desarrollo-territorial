@@ -25,6 +25,50 @@ export type ZoneProperties = {
   flags: string[];
 };
 
+// --- Extracción on-demand (CAPA 1): PolygonContext del backend /api/extract ---
+export type ExtractZona = {
+  categoria?: string | null;
+  uso_permitido?: string | string[] | null;
+  fos?: number | null;
+  fot?: number | null;
+  altura_max_m?: number | null;
+  densidad?: string | null;
+  cobertura_pct?: number | null;
+  source?: string | null;
+  normativa_raw?: Record<string, unknown> | null;
+};
+
+export type ExtractEquipamiento = {
+  tipo: string;
+  nombre?: string | null;
+  dist_m?: number | null;
+};
+
+export type ExtractContext = {
+  schema_version: string;
+  bbox: number[];
+  area_ha: number;
+  crs_metric: string;
+  normativa: {
+    modo?: "atributos" | "tabla" | null;
+    zonas: ExtractZona[];
+    restricciones: { tipo: string; geometria_afectada_pct?: number | null }[];
+  };
+  fisico: {
+    pendiente_media_pct?: number | null;
+    pendiente_max_pct?: number | null;
+    riesgo_hidrico?: string | null;
+    dem_source?: string | null;
+  };
+  hidrografia: { tipo: string; nombre?: string | null; dist_m?: number | null }[];
+  accesibilidad: {
+    dist_huella_urbana_m?: number | null;
+    dist_vial_principal_m?: number | null;
+    equipamiento: ExtractEquipamiento[];
+  };
+  warnings: string[];
+};
+
 // --- Registro de proyectos (obras/desarrollos sobre el territorio) ---
 export type ProyectoTipo =
   | "ruta"

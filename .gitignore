@@ -43,3 +43,6 @@ pipeline/data/raw/
 pipeline/data/*.gpkg
 pipeline/data/*.parquet
 pipeline/cache/
+
+# Cache HTTP de osmnx/Overpass (regenerable)
+cache/

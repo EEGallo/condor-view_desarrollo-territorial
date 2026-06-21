@@ -46,6 +46,7 @@ type MapViewProps = {
   projectsVisible?: boolean;
   onProjectPlaced?: (coords: [number, number]) => void;
   onProjectSelect?: (project: Proyecto) => void;
+  onPolygonComplete?: (polygon: GeoJSON.Polygon) => void;
 };
 
 export type MapViewHandle = {
@@ -57,6 +58,8 @@ export type MapViewHandle = {
   setColorMode: (mode: ColorMode) => void;
   set3D: (enabled: boolean) => void;
   setProjectMode: (enabled: boolean) => void;
+  setDrawPolygonMode: (enabled: boolean) => void;
+  clearDrawPolygon: () => void;
 };
 
 const BASEMAP_STYLES: Record<BasemapStyle, string> = {
@@ -73,6 +76,11 @@ const HIGHLIGHT_LAYER_ID = "zonas-highlight";
 const DRAW_SOURCE_ID = "sim-draw";
 const DRAW_LINE_LAYER_ID = "sim-draw-line";
 const DRAW_POINT_LAYER_ID = "sim-draw-point";
+// Capa de dibujo del polígono de extracción on-demand (CAPA 1)
+const EXTRACT_SOURCE_ID = "extract-draw";
+const EXTRACT_FILL_LAYER_ID = "extract-fill";
+const EXTRACT_LINE_LAYER_ID = "extract-line";
+const EXTRACT_POINT_LAYER_ID = "extract-point";
 const TERRAIN_SOURCE_ID = "terrain-dem";
 const HILLSHADE_LAYER_ID = "terrain-hillshade";
 const PROJECTS_SOURCE_ID = "proyectos";
@@ -268,6 +276,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
       projectsVisible = true,
       onProjectPlaced,
       onProjectSelect,
+      onPolygonComplete,
     },
     ref
   ) {
@@ -293,6 +302,12 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     onProjectPlacedRef.current = onProjectPlaced;
     const onProjectSelectRef = useRef(onProjectSelect);
     onProjectSelectRef.current = onProjectSelect;
+    // Extracción on-demand (CAPA 1)
+    const drawPolyModeRef = useRef(false);
+    const polyPointsRef = useRef<[number, number][]>([]);
+    const polyDoneRef = useRef<GeoJSON.Polygon | null>(null);
+    const onPolygonCompleteRef = useRef(onPolygonComplete);
+    onPolygonCompleteRef.current = onPolygonComplete;
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
 
@@ -492,6 +507,41 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
       source.setData({ type: "FeatureCollection", features: feats });
     }, []);
 
+    // Dibuja el polígono de extracción (terminado) + traza/vértices en progreso.
+    const updateExtractLayer = useCallback(() => {
+      const map = mapRef.current;
+      if (!map) return;
+      const source = map.getSource(EXTRACT_SOURCE_ID) as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (!source) return;
+
+      const feats: GeoJSON.Feature[] = [];
+      if (polyDoneRef.current) {
+        feats.push({
+          type: "Feature",
+          properties: { kind: "poly" },
+          geometry: polyDoneRef.current,
+        });
+      }
+      const pts = polyPointsRef.current;
+      if (pts.length >= 2) {
+        feats.push({
+          type: "Feature",
+          properties: { kind: "draft" },
+          geometry: { type: "LineString", coordinates: pts },
+        });
+      }
+      for (const pt of pts) {
+        feats.push({
+          type: "Feature",
+          properties: { kind: "vertex" },
+          geometry: { type: "Point", coordinates: pt },
+        });
+      }
+      source.setData({ type: "FeatureCollection", features: feats });
+    }, []);
+
     const addDataLayers = useCallback(
       (map: maplibregl.Map, geojson: GeoJSON.FeatureCollection) => {
         if (map.getSource(SOURCE_ID)) return;
@@ -610,6 +660,43 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           });
         }
 
+        // Capa de extracción on-demand (polígono dibujado por el usuario)
+        if (!map.getSource(EXTRACT_SOURCE_ID)) {
+          map.addSource(EXTRACT_SOURCE_ID, {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+          map.addLayer({
+            id: EXTRACT_FILL_LAYER_ID,
+            type: "fill",
+            source: EXTRACT_SOURCE_ID,
+            filter: ["==", ["get", "kind"], "poly"],
+            paint: { "fill-color": "#a78bfa", "fill-opacity": 0.25 },
+          });
+          map.addLayer({
+            id: EXTRACT_LINE_LAYER_ID,
+            type: "line",
+            source: EXTRACT_SOURCE_ID,
+            paint: {
+              "line-color": "#a78bfa",
+              "line-width": 3,
+              "line-dasharray": [2, 1],
+            },
+          });
+          map.addLayer({
+            id: EXTRACT_POINT_LAYER_ID,
+            type: "circle",
+            source: EXTRACT_SOURCE_ID,
+            filter: ["==", ["get", "kind"], "vertex"],
+            paint: {
+              "circle-radius": 5,
+              "circle-color": "#ffffff",
+              "circle-stroke-color": "#a78bfa",
+              "circle-stroke-width": 2,
+            },
+          });
+        }
+
         // Capa de proyectos (obras/desarrollos) — encima de todo
         if (!map.getSource(PROJECTS_SOURCE_ID)) {
           map.addSource(PROJECTS_SOURCE_ID, {
@@ -674,7 +761,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
 
         // Hover
         map.on("mousemove", FILL_LAYER_ID, (e) => {
-          if (simModeRef.current) return;
+          if (simModeRef.current || drawPolyModeRef.current) return;
           if (!e.features || e.features.length === 0) return;
           map.getCanvas().style.cursor = "pointer";
 
@@ -719,7 +806,12 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
 
         // Click en zona (deshabilitado en modo simulación o alta de proyecto)
         map.on("click", FILL_LAYER_ID, (e) => {
-          if (simModeRef.current || projectModeRef.current) return;
+          if (
+            simModeRef.current ||
+            projectModeRef.current ||
+            drawPolyModeRef.current
+          )
+            return;
           if (!e.features || e.features.length === 0) return;
           // Si hay un marcador de proyecto bajo el cursor, lo maneja su capa
           if (
@@ -782,8 +874,18 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           handleZoneSelect(zoneData);
         });
 
-        // Click a nivel mapa: colocar intervención
+        // Click a nivel mapa: colocar intervención / vértice / obra
         map.on("click", (e) => {
+          // Extracción: cada click agrega un vértice al polígono
+          if (drawPolyModeRef.current) {
+            polyPointsRef.current = [
+              ...polyPointsRef.current,
+              [e.lngLat.lng, e.lngLat.lat],
+            ];
+            polyDoneRef.current = null;
+            updateExtractLayer();
+            return;
+          }
           // Alta de proyecto: el click coloca la obra
           if (projectModeRef.current) {
             onProjectPlacedRef.current?.([e.lngLat.lng, e.lngLat.lat]);
@@ -806,8 +908,24 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           }
         });
 
-        // Doble click: cerrar la traza (ruta/agua)
+        // Doble click en extracción: cerrar el polígono y disparar /api/extract
         map.on("dblclick", (e) => {
+          if (drawPolyModeRef.current) {
+            e.preventDefault();
+            const pts = polyPointsRef.current;
+            if (pts.length >= 3) {
+              const ring = [...pts, pts[0]];
+              const polygon: GeoJSON.Polygon = {
+                type: "Polygon",
+                coordinates: [ring],
+              };
+              polyDoneRef.current = polygon;
+              onPolygonCompleteRef.current?.(polygon);
+            }
+            polyPointsRef.current = [];
+            updateExtractLayer();
+            return;
+          }
           const mode = simModeRef.current;
           if (!mode || mode === "hub") return;
           e.preventDefault();
@@ -832,6 +950,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
 
         // Poblar proyectos + reaplicar terreno tras cambio de basemap
         updateProjectsLayer();
+        updateExtractLayer();
         if (terrain3DRef.current) applyTerrain(true);
       },
       [
@@ -840,6 +959,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         onInterventionsChange,
         recomputeAll,
         updateDrawLayer,
+        updateExtractLayer,
         updateProjectsLayer,
         applyTerrain,
       ]
@@ -909,6 +1029,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
             map.setBearing(bearing);
             addDataLayers(map, geojson);
             updateDrawLayer();
+            updateExtractLayer();
             recomputeAll();
           });
         },
@@ -948,11 +1069,30 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           const map = mapRef.current;
           if (map) map.getCanvas().style.cursor = enabled ? "crosshair" : "";
         },
+
+        setDrawPolygonMode(enabled: boolean) {
+          const map = mapRef.current;
+          drawPolyModeRef.current = enabled;
+          polyPointsRef.current = [];
+          if (!enabled) polyDoneRef.current = null;
+          updateExtractLayer();
+          if (!map) return;
+          if (enabled) map.doubleClickZoom.disable();
+          else map.doubleClickZoom.enable();
+          map.getCanvas().style.cursor = enabled ? "crosshair" : "";
+        },
+
+        clearDrawPolygon() {
+          polyPointsRef.current = [];
+          polyDoneRef.current = null;
+          updateExtractLayer();
+        },
       }),
       [
         addDataLayers,
         recomputeAll,
         updateDrawLayer,
+        updateExtractLayer,
         onInterventionsChange,
         applyTerrain,
       ]
