@@ -10,6 +10,11 @@
 #   geometryType : esriGeometryPolygon (81.155 parcelas)
 #   campo categoría: 'zona' -> valores: URBANA | SUBURBANA | RURAL | SECANA | ' '
 #   sin campos fos/fot/altura -> Caso B
+#
+# PARA PASAR A CASO A (rellenar FOS/FOT/altura): se necesita que la UGDT publique
+# una capa de parcelas con indicadores (como Capital/GC/Guaymallén). Qué pedir y
+# cómo conectarlo: ver docs/pedido-ugdt-indicadores.md
+# Cuando llegue: cambiar base_url/layer_id acá y mapear fos/fot/altura en field_map.
 
 arcgis:
   base_url: "https://mpipgis1.mendoza.gov.ar/server/rest/services/Hosted/San_Rafael/FeatureServer"
