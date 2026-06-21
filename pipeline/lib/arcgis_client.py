@@ -99,6 +99,42 @@ def _esri_to_geojson(esri: dict[str, Any]) -> dict[str, Any]:
     return {"type": "FeatureCollection", "features": features}
 
 
+def _ssl_context(arc: dict[str, Any]) -> ssl.SSLContext | None:
+    """Contexto sin verificación si verify_ssl: false (cert gov incompleto)."""
+    if arc.get("verify_ssl") is False:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    return None
+
+
+def _request_page(
+    base_url: str,
+    layer_id: str | int,
+    params: dict[str, str],
+    *,
+    ctx: ssl.SSLContext | None,
+    timeout: int,
+) -> dict[str, Any]:
+    """Una página de la query. Devuelve GeoJSON FeatureCollection."""
+    url = _query_url(base_url, layer_id) + "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "condor-view/1.0"})
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+        raw = json.loads(resp.read().decode("utf-8"))
+    # Si el server no soportó f=geojson y devolvió esri json, convertir.
+    if "features" in raw and raw.get("type") != "FeatureCollection":
+        return _esri_to_geojson(raw)
+    return raw
+
+
+def _exceeded(raw: dict[str, Any]) -> bool:
+    return bool(
+        raw.get("exceededTransferLimit")
+        or raw.get("properties", {}).get("exceededTransferLimit")
+    )
+
+
 def query_layer(
     layer_id: str | int,
     *,
@@ -106,18 +142,25 @@ def query_layer(
     polygon_coordinates: list | None = None,
     bbox: tuple[float, float, float, float] | None = None,
     timeout: int = DEFAULT_TIMEOUT,
+    paginate: bool = True,
+    page_size: int = 2000,
+    max_pages: int = 100,
 ) -> dict[str, Any]:
     """Consulta una capa del FeatureServer. Devuelve GeoJSON FeatureCollection.
 
     Pasar polygon_coordinates (anillos GeoJSON) o bbox. Lanza si la red falla;
     el llamador decide la degradación.
+
+    paginate=True recorre con resultOffset hasta agotar (maxRecordCount del
+    server limita cada página). max_pages acota el barrido; si se alcanza con
+    más datos pendientes, el resultado queda con exceededTransferLimit=True.
     """
     arc = sources["arcgis"]
     base_url = arc["base_url"]
     auth = (arc.get("zonificacion") or {}).get("auth", "none")
     token = (arc.get("zonificacion") or {}).get("token")
 
-    params: dict[str, str] = {
+    base_params: dict[str, str] = {
         "geometryType": "esriGeometryPolygon"
         if polygon_coordinates is not None
         else "esriGeometryEnvelope",
@@ -129,33 +172,43 @@ def query_layer(
         "f": "geojson",
     }
     if polygon_coordinates is not None:
-        params["geometry"] = _esri_polygon(polygon_coordinates)
+        base_params["geometry"] = _esri_polygon(polygon_coordinates)
     elif bbox is not None:
-        params["geometry"] = _bbox_envelope(bbox)
+        base_params["geometry"] = _bbox_envelope(bbox)
     else:
         raise ValueError("query_layer requiere polygon_coordinates o bbox")
 
     if auth == "token" and token:
-        params["token"] = token
+        base_params["token"] = token
 
-    url = _query_url(base_url, layer_id) + "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={"User-Agent": "condor-view/1.0"})
+    ctx = _ssl_context(arc)
 
-    # Algunos servidores gov (p.ej. mendoza.gov.ar) tienen cadena de cert
-    # incompleta. verify_ssl: false usa contexto sin verificación.
-    ctx = None
-    if arc.get("verify_ssl") is False:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+    if not paginate:
+        return _request_page(base_url, layer_id, base_params, ctx=ctx, timeout=timeout)
 
-    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-        raw = json.loads(resp.read().decode("utf-8"))
+    all_features: list[dict[str, Any]] = []
+    offset = 0
+    truncated = False
+    for _ in range(max_pages):
+        params = dict(base_params)
+        params["resultOffset"] = str(offset)
+        params["resultRecordCount"] = str(page_size)
+        raw = _request_page(base_url, layer_id, params, ctx=ctx, timeout=timeout)
+        feats = raw.get("features", [])
+        all_features.extend(feats)
+        offset += len(feats)
+        # Parar si el server indica que no hay más o devolvió página incompleta.
+        if not _exceeded(raw) or len(feats) == 0:
+            break
+        if len(feats) < page_size:
+            break
+    else:
+        truncated = True  # se agotó max_pages con datos pendientes
 
-    # Si el server no soportó f=geojson y devolvió esri json, convertir.
-    if "features" in raw and raw.get("type") != "FeatureCollection":
-        return _esri_to_geojson(raw)
-    return raw
+    result: dict[str, Any] = {"type": "FeatureCollection", "features": all_features}
+    if truncated:
+        result["exceededTransferLimit"] = True
+    return result
 
 
 def fetch_zonificacion(
@@ -187,14 +240,12 @@ def fetch_zonificacion(
             polygon_coordinates=polygon_coordinates,
             bbox=bbox,
         )
-        # No silenciar truncamiento: ArcGIS limita por maxRecordCount.
-        if gj.get("exceededTransferLimit") or gj.get("properties", {}).get(
-            "exceededTransferLimit"
-        ):
+        # No silenciar: solo si se agotó max_pages (paginación incompleta).
+        if _exceeded(gj):
             warnings.append(
-                f"arcgis: respuesta truncada por maxRecordCount "
-                f"({len(gj.get('features', []))} features); falta paginar "
-                "(resultOffset) para cubrir todo el bbox"
+                f"arcgis: paginación alcanzó max_pages con "
+                f"{len(gj.get('features', []))} features; subir max_pages "
+                "para cubrir todo el bbox"
             )
         return gj, warnings
     except Exception as exc:  # red caída, timeout, etc.
