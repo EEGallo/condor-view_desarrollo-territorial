@@ -581,11 +581,14 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         features: sc.masas.map((m) => ({
           type: "Feature",
           properties: {
-            base: m.base_z_m ?? 0,
-            height: (m.base_z_m ?? 0) + m.altura_m,
+            // Base 0 = masas asentadas sobre el plano del mapa (visibles sin
+            // depender del terreno 3D). base_z_m queda para drapeo futuro.
+            base: 0,
+            height: m.altura_m,
             uso: m.uso ?? "otro",
             altura_m: m.altura_m,
             n_pisos: m.n_pisos,
+            base_z_m: m.base_z_m,
           },
           geometry: m.footprint,
         })),
