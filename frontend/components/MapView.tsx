@@ -1221,7 +1221,35 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           sceneRef.current = scene;
           updateSceneLayer();
           const map = mapRef.current;
-          if (map && scene) map.easeTo({ pitch: 55, duration: 800 });
+          if (!map) return;
+          if (scene) {
+            // Atenuar la grilla de zonas para que las masas resalten.
+            if (map.getLayer(FILL_LAYER_ID))
+              map.setPaintProperty(FILL_LAYER_ID, "fill-opacity", 0.06);
+            // Zoom al área generada + inclinar (las masas de 3m son sub-pixel
+            // al zoom del departamento).
+            const b = new maplibregl.LngLatBounds();
+            for (const f of scene.lotes.features) {
+              const g = f.geometry;
+              if (g && g.type === "Polygon") {
+                for (const c of g.coordinates[0]) b.extend(c as [number, number]);
+              }
+            }
+            if (!b.isEmpty()) {
+              map.fitBounds(b, { padding: 80, maxZoom: 17, pitch: 55, duration: 1000 });
+            } else {
+              map.easeTo({ pitch: 55, duration: 800 });
+            }
+          } else {
+            // Restaurar opacidad de la grilla.
+            if (map.getLayer(FILL_LAYER_ID))
+              map.setPaintProperty(FILL_LAYER_ID, "fill-opacity", [
+                "case",
+                ["boolean", ["feature-state", "hover"], false],
+                0.8,
+                0.55,
+              ]);
+          }
         },
       }),
       [
