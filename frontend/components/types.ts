@@ -109,6 +109,30 @@ export type SceneModel = {
   warnings: string[];
 };
 
+// --- CAPA 3: DiagnosticReport del backend /api/diagnose ---
+export type DiagCheck = {
+  regla: string;
+  resultado: "cumple" | "observacion" | "no_cumple" | "no_aplica";
+  es_regla_dura: boolean;
+  detalle_tecnico: string;
+  datos: Record<string, unknown>;
+  fuente?: { norma: string; articulo: string } | null;
+  explicacion?: string | null;
+};
+
+export type DiagnosticReport = {
+  schema_version: string;
+  estado_global: "cumple" | "cumple_con_observaciones" | "no_cumple" | "no_apto";
+  indice_aptitud: number;
+  evaluo_trazado: boolean;
+  checks: DiagCheck[];
+  riesgos: { tipo: string; nivel: string; nota: string }[];
+  resumen_ejecutivo: string;
+  fuentes_citadas: string[];
+  warnings: string[];
+  disclaimer: string;
+};
+
 // --- Registro de proyectos (obras/desarrollos sobre el territorio) ---
 export type ProyectoTipo =
   | "ruta"

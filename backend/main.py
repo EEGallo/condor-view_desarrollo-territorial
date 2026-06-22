@@ -15,6 +15,8 @@ from backend.extraction.extract import extract
 from backend.extraction.schema import ExtractRequest, PolygonContext
 from backend.procedural.generate import generate as generate_scene
 from backend.procedural.schema import GenerateRequest, SceneModel
+from backend.diagnosis.diagnose import diagnose as run_diagnose
+from backend.diagnosis.schema import DiagnoseRequest, DiagnosticReport
 
 app = FastAPI(title="Cóndor View — Extracción", version="1.1")
 
@@ -55,6 +57,17 @@ def post_generate(req: GenerateRequest) -> SceneModel:
     if not req.context.get("polygon"):
         raise HTTPException(400, "context.polygon requerido")
     return generate_scene(req.context, req.params)
+
+
+@app.post("/api/diagnose", response_model=DiagnosticReport)
+def post_diagnose(req: DiagnoseRequest) -> DiagnosticReport:
+    """CAPA 3: PolygonContext (+ ProposedLayout) -> DiagnosticReport.
+
+    Motor de reglas determinístico decide; el LLM solo redacta.
+    """
+    if not req.context.get("polygon"):
+        raise HTTPException(400, "context.polygon requerido")
+    return run_diagnose(req.context, req.proposed_layout)
 
 
 @app.get("/api/zonas")

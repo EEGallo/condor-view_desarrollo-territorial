@@ -27,6 +27,7 @@ import type {
   Proyecto,
   ExtractContext,
   SceneModel,
+  DiagnosticReport,
 } from "@/components/types";
 import type {
   MapViewHandle,
@@ -70,6 +71,9 @@ export default function Home() {
   const [scene, setScene] = useState<SceneModel | null>(null);
   const [sceneLoading, setSceneLoading] = useState(false);
   const [sceneError, setSceneError] = useState<string | null>(null);
+  const [diag, setDiag] = useState<DiagnosticReport | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
   const mapRef = useRef<MapViewHandle>(null);
 
   const handleReady = useCallback(() => setLoading(false), []);
@@ -81,6 +85,9 @@ export default function Home() {
     setScene(null);
     setSceneError(null);
     setSceneLoading(false);
+    setDiag(null);
+    setDiagError(null);
+    setDiagLoading(false);
     mapRef.current?.setScene(null);
   }, []);
 
@@ -155,6 +162,32 @@ export default function Home() {
       setSceneLoading(false);
     }
   }, [extractCtx, API_BASE]);
+
+  const handleDiagnose = useCallback(async () => {
+    if (!extractCtx) return;
+    setDiagError(null);
+    setDiagLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/diagnose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: extractCtx,
+          proposed_layout: scene ? scene.metricas : null,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setDiag((await res.json()) as DiagnosticReport);
+    } catch (err) {
+      setDiagError(
+        `No se pudo diagnosticar (${
+          err instanceof Error ? err.message : "error"
+        }).`
+      );
+    } finally {
+      setDiagLoading(false);
+    }
+  }, [extractCtx, scene, API_BASE]);
 
   // Cargar proyectos: seed estático + altas locales (localStorage)
   useEffect(() => {
@@ -378,6 +411,10 @@ export default function Home() {
         scene={scene}
         sceneLoading={sceneLoading}
         sceneError={sceneError}
+        onDiagnose={handleDiagnose}
+        diag={diag}
+        diagLoading={diagLoading}
+        diagError={diagError}
       />
 
       {/* Hint mientras dibuja */}

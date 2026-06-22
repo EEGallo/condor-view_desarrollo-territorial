@@ -1,6 +1,6 @@
 "use client";
 
-import type { ExtractContext, SceneModel } from "./types";
+import type { ExtractContext, SceneModel, DiagnosticReport } from "./types";
 
 type ExtractPanelProps = {
   context: ExtractContext | null;
@@ -11,6 +11,23 @@ type ExtractPanelProps = {
   scene?: SceneModel | null;
   sceneLoading?: boolean;
   sceneError?: string | null;
+  onDiagnose?: () => void;
+  diag?: DiagnosticReport | null;
+  diagLoading?: boolean;
+  diagError?: string | null;
+};
+
+const RESULTADO_COLOR: Record<string, string> = {
+  cumple: "var(--accent-green)",
+  observacion: "var(--accent-yellow)",
+  no_cumple: "var(--accent-red)",
+  no_aplica: "var(--text-muted)",
+};
+const ESTADO_LABEL: Record<string, string> = {
+  cumple: "Cumple",
+  cumple_con_observaciones: "Cumple con observaciones",
+  no_cumple: "No cumple",
+  no_apto: "No apto",
 };
 
 function fmtDist(m: number | null | undefined): string {
@@ -44,6 +61,10 @@ export function ExtractPanel({
   scene,
   sceneLoading,
   sceneError,
+  onDiagnose,
+  diag,
+  diagLoading,
+  diagError,
 }: ExtractPanelProps) {
   const isOpen = loading || error !== null || context !== null;
 
@@ -350,6 +371,132 @@ export function ExtractPanel({
                       }
                       isLast
                     />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Diagnóstico normativo (CAPA 3) */}
+            {onDiagnose && (
+              <div className="flex flex-col gap-3">
+                <span
+                  className="text-[10px] font-semibold uppercase tracking-[0.2em]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Diagnóstico normativo
+                </span>
+                <button
+                  onClick={onDiagnose}
+                  disabled={diagLoading}
+                  className="rounded-lg px-3 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all"
+                  style={{
+                    background: diagLoading ? "var(--bg-surface)" : "var(--accent-cyan)18",
+                    border: "1px solid var(--accent-cyan)",
+                    color: "var(--accent-cyan)",
+                    cursor: diagLoading ? "wait" : "pointer",
+                  }}
+                >
+                  {diagLoading
+                    ? "Diagnosticando…"
+                    : diag
+                      ? "Re-diagnosticar"
+                      : "Diagnosticar normativa"}
+                </button>
+                {diagError && (
+                  <p className="text-[11px]" style={{ color: "var(--accent-red)" }}>
+                    {diagError}
+                  </p>
+                )}
+                {diag && (
+                  <div className="flex flex-col gap-3">
+                    {/* Estado + aptitud (ejes separados) */}
+                    <div
+                      className="flex items-center justify-between rounded-xl px-4 py-3"
+                      style={{
+                        background: "var(--bg-surface)",
+                        border: `1px solid ${
+                          diag.estado_global.startsWith("cumple")
+                            ? "var(--accent-green)40"
+                            : "var(--accent-red)40"
+                        }`,
+                      }}
+                    >
+                      <span
+                        className="text-xs font-bold uppercase tracking-wide"
+                        style={{
+                          color: diag.estado_global.startsWith("cumple")
+                            ? "var(--accent-green)"
+                            : "var(--accent-red)",
+                        }}
+                      >
+                        {ESTADO_LABEL[diag.estado_global] ?? diag.estado_global}
+                      </span>
+                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                        Aptitud{" "}
+                        <b style={{ color: "var(--text-primary)" }}>
+                          {diag.indice_aptitud}/100
+                        </b>
+                      </span>
+                    </div>
+
+                    {/* Resumen ejecutivo */}
+                    <p
+                      className="rounded-xl px-4 py-3 text-[11px] leading-relaxed"
+                      style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border-subtle)",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      {diag.resumen_ejecutivo}
+                    </p>
+
+                    {/* Checks */}
+                    <div className="flex flex-col gap-2">
+                      {diag.checks.map((c) => (
+                        <div
+                          key={c.regla}
+                          className="flex flex-col gap-1 rounded-lg px-3 py-2"
+                          style={{
+                            background: "var(--bg-surface)",
+                            borderLeft: `2px solid ${RESULTADO_COLOR[c.resultado]}`,
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className="text-[11px] font-semibold capitalize"
+                              style={{ color: "var(--text-primary)" }}
+                            >
+                              {c.regla.replace(/_/g, " ")}
+                              {c.es_regla_dura && (
+                                <span style={{ color: "var(--text-muted)" }}> · dura</span>
+                              )}
+                            </span>
+                            <span
+                              className="text-[10px] font-bold uppercase"
+                              style={{ color: RESULTADO_COLOR[c.resultado] }}
+                            >
+                              {c.resultado.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <span
+                            className="text-[11px] leading-snug"
+                            style={{ color: "var(--text-secondary)" }}
+                          >
+                            {c.explicacion || c.detalle_tecnico}
+                          </span>
+                          {c.fuente && (
+                            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                              {c.fuente.norma} · {c.fuente.articulo}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-[10px] italic" style={{ color: "var(--text-muted)" }}>
+                      {diag.disclaimer}
+                    </p>
                   </div>
                 )}
               </div>
