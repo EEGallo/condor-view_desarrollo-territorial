@@ -336,42 +336,70 @@ export function ExtractPanel({
                     {sceneError}
                   </p>
                 )}
-                {scene && (
+                {scene && scene.metricas.n_lotes === 0 && (
                   <div
-                    className="flex flex-col gap-0 overflow-hidden rounded-xl"
+                    className="flex flex-col gap-2 rounded-xl px-4 py-3"
                     style={{
-                      background: "var(--bg-surface)",
-                      border: "1px solid var(--border-subtle)",
+                      background: "rgba(234, 179, 8, 0.08)",
+                      border: "1px solid rgba(234, 179, 8, 0.25)",
                     }}
                   >
-                    <DetailRow label="Lotes" value={`${scene.metricas.n_lotes}`} />
-                    <DetailRow
-                      label="Ocupación propuesta"
-                      value={`${(scene.metricas.ocupacion_propuesta * 100).toFixed(0)}%`}
-                    />
-                    <DetailRow
-                      label="FOT propuesto"
-                      value={scene.metricas.fot_propuesto.toFixed(2)}
-                    />
-                    <DetailRow
-                      label="Verde"
-                      value={`${(scene.metricas.sup_verde_pct * 100).toFixed(1)}%`}
-                      valueColor="var(--accent-green)"
-                    />
-                    <DetailRow
-                      label="Densidad"
-                      value={`${scene.metricas.densidad_lotes_ha} lotes/ha`}
-                    />
-                    <DetailRow
-                      label="Restricciones"
-                      value={
-                        scene.restricciones_respetadas.length
-                          ? scene.restricciones_respetadas.join(", ")
-                          : "ninguna"
-                      }
-                      isLast
-                    />
+                    <span className="text-xs font-semibold" style={{ color: "var(--accent-yellow)" }}>
+                      No se generaron masas en esta área
+                    </span>
+                    <span className="text-[11px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                      {scene.warnings.length
+                        ? scene.warnings.join(" · ")
+                        : "El área no es urbanizable (muy chica, pendiente excesiva o sobre una restricción). Probá un polígono más grande sobre el oasis o en terreno llano."}
+                    </span>
                   </div>
+                )}
+                {scene && scene.metricas.n_lotes > 0 && (
+                  <>
+                    <div
+                      className="flex flex-col gap-0 overflow-hidden rounded-xl"
+                      style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border-subtle)",
+                      }}
+                    >
+                      <DetailRow label="Lotes" value={`${scene.metricas.n_lotes}`} />
+                      <DetailRow
+                        label="Ocupación propuesta"
+                        value={`${(scene.metricas.ocupacion_propuesta * 100).toFixed(0)}%`}
+                      />
+                      <DetailRow
+                        label="FOT propuesto"
+                        value={scene.metricas.fot_propuesto.toFixed(2)}
+                      />
+                      <DetailRow
+                        label="Verde"
+                        value={`${(scene.metricas.sup_verde_pct * 100).toFixed(1)}%`}
+                        valueColor="var(--accent-green)"
+                      />
+                      <DetailRow
+                        label="Densidad"
+                        value={`${scene.metricas.densidad_lotes_ha} lotes/ha`}
+                      />
+                      <DetailRow
+                        label="Restricciones"
+                        value={
+                          scene.restricciones_respetadas.length
+                            ? scene.restricciones_respetadas.join(", ")
+                            : "ninguna"
+                        }
+                        isLast
+                      />
+                    </div>
+                    {scene.warnings.length > 0 && (
+                      <p
+                        className="text-[10px] leading-relaxed"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {scene.warnings.join(" · ")}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
